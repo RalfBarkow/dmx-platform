@@ -23,6 +23,14 @@ module.exports = (env = {}) => {
     module: {
       rules: [
         {
+          test: /\.elm$/,
+          exclude: [/elm-stuff/, /node_modules/],
+          use: {
+            loader: 'elm-webpack-loader',
+            options: {}
+          }
+        },
+        {
           test: /\.vue$/,
           loader: 'vue-loader'
         },

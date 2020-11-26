@@ -1,0 +1,3 @@
+[submodule "modules-external/dmx-zettelkasten"]
+	path = modules-external/dmx-zettelkasten
+	url = /Users/rgb/Projects/dmx-platform/modules-external/dmx-zettelkasten

@@ -14,7 +14,7 @@
     "stats": "webpack -p --json > stats.json && webpack-bundle-analyzer stats.json modules/dmx-webclient/src/main/resources/web"
   },
   "dependencies": {
-    "axios": "0.18.1",
+    "axios": "0.21.1",
     "dmx-api": "https://github.com/jri/dm5.git",
     "dmx-cytoscape-renderer": "https://github.com/jri/dm5-cytoscape-renderer.git",
     "dmx-detail-panel": "https://github.com/jri/dm5-detail-panel.git",

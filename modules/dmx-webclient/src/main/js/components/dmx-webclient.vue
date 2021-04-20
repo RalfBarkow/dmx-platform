@@ -1,6 +1,6 @@
 <template>
-  <div class="dmx-webclient">
-    <div v-for="compDef in compDefs" :id="mountId(compDef)" :key="compDef.id"></div>
+  <div class="dmx-webclient" :style="{userSelect}">
+    <dmx-resizer @resizeStart="resizeStart" @resizeStop="resizeStop"></dmx-resizer>
   </div>
 </template>
 
@@ -32,16 +32,31 @@ export default {
     dmx, axios, Vue
   },
 
+  data() {
+    return {
+      isResizing: false
+    }
+  },
+
   computed: {
-    compDefs () {
-      return this.$store.state.compDefs.webclient
+    userSelect() {
+      return this.isResizing ? 'none' : ''
     }
   },
 
   methods: {
-    mountId (compDef) {
-      return `mount-${compDef.id}`
+
+    resizeStart () {
+      this.isResizing = true
+    },
+
+    resizeStop () {
+      this.isResizing = false
     }
+  },
+
+  components: {
+    'dmx-resizer': require('./dmx-resizer').default
   }
 }
 </script>
@@ -54,14 +69,14 @@ export default {
 
 .dmx-webclient .dmx-topicmap-panel {
   flex-grow: 1;
-  flex-basis: 70%;
+  width: 70%;
   overflow: hidden;     /* leave place for the detail panel */
   position: relative;
 }
 
 .dmx-webclient .dmx-detail-panel {
   flex-grow: 1;
-  flex-basis: 30%;
+  width: 30%;
   box-sizing: border-box;
   background-color: var(--background-color);
   border-left: 1px solid var(--border-color);

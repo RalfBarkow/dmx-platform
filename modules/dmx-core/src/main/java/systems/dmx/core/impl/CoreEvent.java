@@ -2,10 +2,12 @@ package systems.dmx.core.impl;
 
 import systems.dmx.core.Assoc;
 import systems.dmx.core.AssocType;
+import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
 import systems.dmx.core.model.AssocModel;
 import systems.dmx.core.model.AssocTypeModel;
+import systems.dmx.core.model.RoleTypeModel;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.model.TopicTypeModel;
 import systems.dmx.core.service.ChangeReport;
@@ -39,7 +41,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent CHECK_ASSOCIATION_READ_ACCESS = new DMXEvent(CheckAssocReadAccess.class) {
+    static DMXEvent CHECK_ASSOC_READ_ACCESS = new DMXEvent(CheckAssocReadAccess.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((CheckAssocReadAccess) listener).checkAssocReadAccess(
@@ -59,7 +61,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent CHECK_ASSOCIATION_WRITE_ACCESS = new DMXEvent(CheckAssocWriteAccess.class) {
+    static DMXEvent CHECK_ASSOC_WRITE_ACCESS = new DMXEvent(CheckAssocWriteAccess.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((CheckAssocWriteAccess) listener).checkAssocWriteAccess(
@@ -79,7 +81,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_CREATE_ASSOCIATION = new DMXEvent(PreCreateAssoc.class) {
+    static DMXEvent PRE_CREATE_ASSOC = new DMXEvent(PreCreateAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreCreateAssoc) listener).preCreateAssoc(
@@ -97,11 +99,20 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_CREATE_ASSOCIATION_TYPE = new DMXEvent(PreCreateAssocType.class) {
+    static DMXEvent PRE_CREATE_ASSOC_TYPE = new DMXEvent(PreCreateAssocType.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreCreateAssocType) listener).preCreateAssocType(
                 (AssocTypeModel) params[0]
+            );
+        }
+    };
+
+    static DMXEvent PRE_CREATE_ROLE_TYPE = new DMXEvent(PreCreateRoleType.class) {
+        @Override
+        public void dispatch(EventListener listener, Object... params) {
+            ((PreCreateRoleType) listener).preCreateRoleType(
+                (RoleTypeModel) params[0]
             );
         }
     };
@@ -117,7 +128,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent POST_CREATE_ASSOCIATION = new DMXEvent(PostCreateAssoc.class) {
+    static DMXEvent POST_CREATE_ASSOC = new DMXEvent(PostCreateAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PostCreateAssoc) listener).postCreateAssoc(
@@ -137,7 +148,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_UPDATE_ASSOCIATION = new DMXEvent(PreUpdateAssoc.class) {
+    static DMXEvent PRE_UPDATE_ASSOC = new DMXEvent(PreUpdateAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreUpdateAssoc) listener).preUpdateAssoc(
@@ -157,7 +168,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent POST_UPDATE_ASSOCIATION = new DMXEvent(PostUpdateAssoc.class) {
+    static DMXEvent POST_UPDATE_ASSOC = new DMXEvent(PostUpdateAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PostUpdateAssoc) listener).postUpdateAssoc(
@@ -177,7 +188,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_DELETE_ASSOCIATION = new DMXEvent(PreDeleteAssoc.class) {
+    static DMXEvent PRE_DELETE_ASSOC = new DMXEvent(PreDeleteAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreDeleteAssoc) listener).preDeleteAssoc(
@@ -197,7 +208,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent POST_DELETE_ASSOCIATION = new DMXEvent(PostDeleteAssoc.class) {
+    static DMXEvent POST_DELETE_ASSOC = new DMXEvent(PostDeleteAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PostDeleteAssoc) listener).postDeleteAssoc(
@@ -218,7 +229,7 @@ class CoreEvent {
     // ---
 
     // This event has a double nature:
-    //   a) it is fired regularily (see CoreServiceImpl.createTopicType()).
+    //   a) it is fired regularily (see AccessLayer.createTopicType()).
     //   b) it is fired locally (see PluginImpl.introduceTopicTypesToPlugin()).
     static DMXEvent INTRODUCE_TOPIC_TYPE = new DMXEvent(IntroduceTopicType.class) {
         @Override
@@ -230,13 +241,25 @@ class CoreEvent {
     };
 
     // This event has a double nature:
-    //   a) it is fired regularily (see CoreServiceImpl.createAssocType()).
+    //   a) it is fired regularily (see AccessLayer.createAssocType()).
     //   b) it is fired locally (see PluginImpl.introduceAssocTypesToPlugin()).
-    static DMXEvent INTRODUCE_ASSOCIATION_TYPE = new DMXEvent(IntroduceAssocType.class) {
+    static DMXEvent INTRODUCE_ASSOC_TYPE = new DMXEvent(IntroduceAssocType.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((IntroduceAssocType) listener).introduceAssocType(
                 (AssocType) params[0]
+            );
+        }
+    };
+
+    // This event has a double nature:
+    //   a) it is fired regularily (see AccessLayer.createRoleType()).
+    //   b) it is fired locally (see PluginImpl.introduceRoleTypesToPlugin()).
+    static DMXEvent INTRODUCE_ROLE_TYPE = new DMXEvent(IntroduceRoleType.class) {
+        @Override
+        public void dispatch(EventListener listener, Object... params) {
+            ((IntroduceRoleType) listener).introduceRoleType(
+                (RoleType) params[0]
             );
         }
     };
@@ -283,7 +306,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_SEND_ASSOCIATION = new DMXEvent(PreSendAssoc.class) {
+    static DMXEvent PRE_SEND_ASSOC = new DMXEvent(PreSendAssoc.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreSendAssoc) listener).preSendAssoc(
@@ -301,7 +324,7 @@ class CoreEvent {
         }
     };
 
-    static DMXEvent PRE_SEND_ASSOCIATION_TYPE = new DMXEvent(PreSendAssocType.class) {
+    static DMXEvent PRE_SEND_ASSOC_TYPE = new DMXEvent(PreSendAssocType.class) {
         @Override
         public void dispatch(EventListener listener, Object... params) {
             ((PreSendAssocType) listener).preSendAssocType(

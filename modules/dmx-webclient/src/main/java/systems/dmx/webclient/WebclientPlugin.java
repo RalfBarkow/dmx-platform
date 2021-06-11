@@ -5,11 +5,13 @@ import static systems.dmx.core.Constants.*;
 import systems.dmx.core.Assoc;
 import systems.dmx.core.AssocType;
 import systems.dmx.core.DMXType;
+import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
 import systems.dmx.core.ViewConfig;
 import systems.dmx.core.model.AssocTypeModel;
 import systems.dmx.core.model.CompDefModel;
+import systems.dmx.core.model.RoleTypeModel;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.model.TopicTypeModel;
 import systems.dmx.core.model.TypeModel;
@@ -19,11 +21,13 @@ import systems.dmx.core.service.ChangeReport;
 import systems.dmx.core.service.Directive;
 import systems.dmx.core.service.Directives;
 import systems.dmx.core.service.event.AllPluginsActive;
-import systems.dmx.core.service.event.IntroduceTopicType;
 import systems.dmx.core.service.event.IntroduceAssocType;
+import systems.dmx.core.service.event.IntroduceRoleType;
+import systems.dmx.core.service.event.IntroduceTopicType;
 import systems.dmx.core.service.event.PostUpdateTopic;
-import systems.dmx.core.service.event.PreCreateTopicType;
 import systems.dmx.core.service.event.PreCreateAssocType;
+import systems.dmx.core.service.event.PreCreateRoleType;
+import systems.dmx.core.service.event.PreCreateTopicType;
 
 import java.awt.Desktop;
 import java.net.URI;
@@ -34,8 +38,10 @@ import java.util.logging.Logger;
 public class WebclientPlugin extends PluginActivator implements AllPluginsActive,
                                                                 IntroduceTopicType,
                                                                 IntroduceAssocType,
+                                                                IntroduceRoleType,
                                                                 PreCreateTopicType,
                                                                 PreCreateAssocType,
+                                                                PreCreateRoleType,
                                                                 PostUpdateTopic {
 
     // ------------------------------------------------------------------------------------------------------- Constants
@@ -101,6 +107,20 @@ public class WebclientPlugin extends PluginActivator implements AllPluginsActive
         addDefaultViewConfig(model);
     }
 
+    /**
+     * Add a default view config to the role type in case no one is set.
+     * <p>
+     * Note: the default view config needs a workspace assignment. The default view config must be added *before* the
+     * assignment can take place. Workspace assignment for a role type (including its view config) is performed by the
+     * type-introduction hook of the Workspaces module. Here we use the pre-create-role-type hook (instead of type-
+     * introduction too) as the pre-create-role-type hook is guaranteed to be invoked *before* type-introduction.
+     * On the other hand the order of type-introduction invocations is not deterministic accross plugins.
+     */
+    @Override
+    public void preCreateRoleType(RoleTypeModel model) {
+        addDefaultViewConfigTopic(model.getViewConfig());
+    }
+
     // ---
 
     /**
@@ -124,6 +144,11 @@ public class WebclientPlugin extends PluginActivator implements AllPluginsActive
     @Override
     public void introduceAssocType(AssocType assocType) {
         setViewConfigLabel(assocType);
+    }
+
+    @Override
+    public void introduceRoleType(RoleType roleType) {
+        setViewConfigLabel(roleType);
     }
 
     // ------------------------------------------------------------------------------------------------- Private Methods
@@ -161,8 +186,10 @@ public class WebclientPlugin extends PluginActivator implements AllPluginsActive
         } else if (typeUri.equals(ASSOC_TYPE)) {
             _updateTypeCacheAndAddDirective(
                 dmx.getAssocType(type.getUri()),
-                compDefId, viewConfigTopic, Directive.UPDATE_ASSOCIATION_TYPE
+                compDefId, viewConfigTopic, Directive.UPDATE_ASSOC_TYPE
             );
+        } else if (typeUri.equals(ROLE_TYPE)) {
+            Directives.get().add(Directive.UPDATE_ROLE_TYPE, dmx.getRoleType(type.getUri()));
         } else {
             throw new RuntimeException("View config " + viewConfigTopic.getId() + " is associated unexpectedly, type=" +
                 type + ", compDefId=" + compDefId + ", viewConfigTopic=" + viewConfigTopic);
@@ -172,7 +199,7 @@ public class WebclientPlugin extends PluginActivator implements AllPluginsActive
     private void _updateTypeCacheAndAddDirective(DMXType type, long compDefId, Topic viewConfigTopic, Directive dir) {
         logger.info("### Updating view config of type \"" + type.getUri() + "\", compDefId=" + compDefId);
         updateTypeCache(type.getModel(), compDefId, viewConfigTopic.getModel());
-        Directives.get().add(dir, type);        // ### TODO: should be implicit
+        Directives.get().add(dir, type);
     }
 
     /**
@@ -197,6 +224,10 @@ public class WebclientPlugin extends PluginActivator implements AllPluginsActive
         for (String compDefUri : type) {
             setViewConfigLabel(type.getCompDef(compDefUri).getViewConfig());
         }
+    }
+
+    private void setViewConfigLabel(RoleType roleType) {
+        setViewConfigLabel(roleType.getViewConfig());
     }
 
     private void setViewConfigLabel(ViewConfig viewConfig) {

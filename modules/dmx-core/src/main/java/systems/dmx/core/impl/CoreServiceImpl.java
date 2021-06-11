@@ -4,11 +4,13 @@ import static systems.dmx.core.Constants.*;
 import systems.dmx.core.Assoc;
 import systems.dmx.core.AssocType;
 import systems.dmx.core.DMXObject;
+import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
 import systems.dmx.core.model.AssocModel;
 import systems.dmx.core.model.AssocTypeModel;
 import systems.dmx.core.model.PlayerModel;
+import systems.dmx.core.model.RoleTypeModel;
 import systems.dmx.core.model.SimpleValue;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.model.TopicTypeModel;
@@ -163,6 +165,11 @@ public class CoreServiceImpl implements CoreService {
     }
 
     @Override
+    public List<Assoc> getAssocsByRoleType(String roleTypeUri) {
+        return al.instantiate(al.getAssocsByRoleType(roleTypeUri));
+    }
+
+    @Override
     public List<Assoc> getAssocs(long topic1Id, long topic2Id) {
         return al.instantiate(al.getAssocs(topic1Id, topic2Id));
     }
@@ -300,8 +307,23 @@ public class CoreServiceImpl implements CoreService {
     // === Role Types ===
 
     @Override
-    public Topic createRoleType(TopicModel model) {
-        return al.createRoleType((TopicModelImpl) model).instantiate();
+    public RoleType getRoleType(String roleTypeUri) {
+        return al.getRoleType(roleTypeUri).instantiate();
+    }
+
+    @Override
+    public RoleType getRoleTypeImplicitly(long assocId, String roleTypeUri) {
+        return al.getRoleTypeImplicitly(assocId, roleTypeUri).instantiate();
+    }
+
+    @Override
+    public List<RoleType> getAllRoleTypes() {
+        return al.instantiate(al.getAllRoleTypes());
+    }
+
+    @Override
+    public RoleType createRoleType(RoleTypeModel model) {
+        return al.createRoleType((RoleTypeModelImpl) model).instantiate();
     }
 
 

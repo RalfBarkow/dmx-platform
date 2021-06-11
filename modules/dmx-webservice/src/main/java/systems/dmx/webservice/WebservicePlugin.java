@@ -8,10 +8,12 @@ import systems.dmx.core.DMXType;
 import systems.dmx.core.JSONEnabled;
 import systems.dmx.core.RelatedAssoc;
 import systems.dmx.core.RelatedTopic;
+import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
 import systems.dmx.core.model.AssocModel;
 import systems.dmx.core.model.AssocTypeModel;
+import systems.dmx.core.model.RoleTypeModel;
 import systems.dmx.core.model.SimpleValue;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.model.TopicTypeModel;
@@ -321,11 +323,23 @@ public class WebservicePlugin extends PluginActivator {
 
     // === Role Types ===
 
+    @GET
+    @Path("/role-type/{uri}/assoc/{id}")
+    public RoleType getRoleTypeImplicitly(@PathParam("id") long assocId, @PathParam("uri") String roleTypeUri) {
+        return dmx.getRoleTypeImplicitly(assocId, roleTypeUri);
+    }
+
+    @GET
+    @Path("/role-types")
+    public List<RoleType> getAllRoleTypes() {
+        return dmx.getAllRoleTypes();
+    }
+
     @POST
-    @Path("/roletype")
+    @Path("/role-type")
     @Transactional
-    public Topic createRoleType(TopicModel model) {
-        Topic roleType = dmx.createRoleType(model);
+    public RoleType createRoleType(RoleTypeModel model) {
+        RoleType roleType = dmx.createRoleType(model);
         me.newRoleType(roleType);
         return roleType;
     }

@@ -90,18 +90,18 @@ const actions = {
   },
 
   loggedOut ({dispatch}) {
-    fetchWorkspaceTopics().then(() => {
-      if (isWorkspaceReadable()) {
-        // Note: 'clearTopicmapCache' is dispatched inside 'reloadTopicmap'
-        dispatch('reloadTopicmap')
-      } else {
-        dispatch('clearTopicmapCache')
-        selectFirstWorkspace(dispatch)
-      }
-      // FIXME: private type defs remain in type cache after logout!
-      // 'initTypeCache' must be dispatched once topicmap display is complete.
-      // Current infrastructure is not sufficient for proper synchronization (note: a route change might be involved).
-    })
+    fetchWorkspaceTopics()
+      .then(() => dispatch('clearTopicmap'))
+      .then(() => dispatch('initTypeCache'))
+      .then(() => {
+        if (isWorkspaceReadable()) {
+          // Note: 'clearTopicmapCache' is dispatched inside 'reloadTopicmap'
+          dispatch('reloadTopicmap')
+        } else {
+          dispatch('clearTopicmapCache')
+          selectFirstWorkspace(dispatch)
+        }
+      })
   },
 
   // WebSocket messages

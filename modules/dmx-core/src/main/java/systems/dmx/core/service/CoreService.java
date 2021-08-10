@@ -3,11 +3,13 @@ package systems.dmx.core.service;
 import systems.dmx.core.Assoc;
 import systems.dmx.core.AssocType;
 import systems.dmx.core.DMXObject;
+import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
 import systems.dmx.core.model.AssocModel;
 import systems.dmx.core.model.AssocTypeModel;
 import systems.dmx.core.model.PlayerModel;
+import systems.dmx.core.model.RoleTypeModel;
 import systems.dmx.core.model.SimpleValue;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.model.TopicTypeModel;
@@ -155,6 +157,8 @@ public interface CoreService {
 
     List<Assoc> getAssocsByType(String assocTypeUri);
 
+    List<Assoc> getAssocsByRoleType(String roleTypeUri);
+
     /**
      * Returns all associations between two topics. If no such association exists an empty list is returned.
      */
@@ -280,7 +284,13 @@ public interface CoreService {
 
     // === Role Types ===
 
-    Topic createRoleType(TopicModel model);
+    RoleType getRoleType(String roleTypeUri);
+
+    RoleType getRoleTypeImplicitly(long assocId, String roleTypeUri);
+
+    List<RoleType> getAllRoleTypes();
+
+    RoleType createRoleType(RoleTypeModel model);
 
 
 

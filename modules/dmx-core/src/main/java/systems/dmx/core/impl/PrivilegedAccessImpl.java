@@ -63,7 +63,6 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     // ---
 
     private static final String ENCODED_PASSWORD_PREFIX = "-SHA256-";
-    private static final long NO_WORKSPACE_TOKEN = -1;
 
     // ---------------------------------------------------------------------------------------------- Instance Variables
 
@@ -355,11 +354,6 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     }
 
     @Override
-    public <V> V runWithoutWorkspaceAssignment(Callable<V> callable) throws Exception {
-        return runInWorkspaceContext(NO_WORKSPACE_TOKEN, callable);
-    }
-
-    @Override
     public Long getWorkspaceContext() {
         return contextTracker.getValue();
     }
@@ -490,7 +484,6 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
 
     // ---
 
-    // ### TODO: remove this workaround
     private boolean permissionIfNoWorkspaceIsAssigned(Operation operation, long objectId, String typeUri) {
         switch (operation) {
         case READ:

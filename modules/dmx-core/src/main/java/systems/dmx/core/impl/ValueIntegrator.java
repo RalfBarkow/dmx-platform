@@ -259,12 +259,14 @@ class ValueIntegrator {
         //
         // label calculation
         boolean updated = value.report != null ? value.report.hasChanges() : false;
-        if (!isFacetUpdate && (value.created || updated)) {
-            DMXObjectModelImpl _value = value.value;
-            if (_value != null) {
-                new LabelCalculation(_value).calculate();
-            } else if (isAssoc) {
-                storeAssocSimpleValue();
+        logger.fine("### typeUri=" + type.getUri() + ", created=" + value.created + ", updated=" + updated);
+        if (!isFacetUpdate) {
+            if (value.value != null) {          // TODO: are these conditions correct/concise?
+                if (value.created || updated) {
+                    new LabelCalculation(value.value).calculate();
+                } else if (isAssoc) {
+                    storeAssocSimpleValue();
+                }
             }
         }
         //
@@ -878,14 +880,16 @@ class ValueIntegrator {
      */
     class UnifiedValue<M extends DMXObjectModelImpl> implements JSONEnabled {
 
-        M value;                            // the wrapped value; may be null
-        boolean created;                    // indicates whether "value" has been retrieved (false) or created (true)
+        M value;                            // The wrapped value; may be null
+
+        boolean created;                    // Indicates whether "value" has been retrieved (false) or created (true)
 
         DMXObjectModelImpl _newValues;      // The original "update model" (`newValues`) that resulted in this value.
                                             // Needed to update the assoc value once the parent assignment for this
                                             // value is created (updateAssignmentsMany()).
 
-        long originalId;                    // The ID of the value this value is about to replace.
+        long originalId;                    // The ID of the value to be replaced by "value" (when "value" is not null)
+                                            // resp. the ID of the value to be removed (when "value" is null).
                                             // Needed to update a multi-value (updateAssignmentsMany()).
                                             // Saved here cause it is overwritten (integrate()).
 

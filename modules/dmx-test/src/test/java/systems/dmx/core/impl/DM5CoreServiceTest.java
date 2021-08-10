@@ -77,7 +77,7 @@ public class DM5CoreServiceTest extends CoreServiceTestEnvironment {
     }
 
     @Test
-    public void addDeletionRef() {
+    public void addDeletionRef_int() {
         DMXTransaction tx = dmx.beginTx();
         try {
             defineLottoModel();
@@ -100,6 +100,38 @@ public class DM5CoreServiceTest extends CoreServiceTestEnvironment {
             numbers = draw.getChildTopics().getTopics("lotto.number");
             assertSame(1, numbers.size());
             assertSame(42, numbers.get(0).getSimpleValue().intValue());
+        } finally {
+            tx.finish();
+        }
+    }
+
+    @Test
+    public void addDeletionRef_string() {
+        DMXTransaction tx = dmx.beginTx();
+        try {
+            defineManyNamesEntityModel();
+            String SIMPLE_NAME   = "simple.name";
+            String SIMPLE_ENTITY = "simple.entity";
+            //
+            Topic entity = dmx.createTopic(mf.newTopicModel(SIMPLE_ENTITY));
+            long entityId = entity.getId();
+            entity.update(mf.newChildTopicsModel()
+                .add(SIMPLE_NAME, "Alice")
+                .add(SIMPLE_NAME, "Bob")
+            );
+            //
+            entity = dmx.getTopic(entityId);
+            List<RelatedTopic> names = entity.getChildTopics().getTopics(SIMPLE_NAME);
+            assertEquals(2, names.size());
+            assertEquals("Alice", names.get(0).getSimpleValue().toString());
+            assertEquals("Bob", names.get(1).getSimpleValue().toString());
+            //
+            entity.update(mf.newChildTopicsModel().addDeletionRef(SIMPLE_NAME, names.get(0).getId()));
+            //
+            entity = dmx.getTopic(entityId);
+            names = entity.getChildTopics().getTopics(SIMPLE_NAME);
+            assertEquals(1, names.size());
+            assertEquals("Bob", names.get(0).getSimpleValue().toString());
         } finally {
             tx.finish();
         }

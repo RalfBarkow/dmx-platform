@@ -174,12 +174,12 @@ class JerseyResponseFilter implements ContainerResponseFilter {
         if (object instanceof TopicType) {                  // Note: must take precedence over topic
             em.fireEvent(CoreEvent.PRE_SEND_TOPIC_TYPE, object);
         } else if (object instanceof AssocType) {           // Note: must take precedence over topic
-            em.fireEvent(CoreEvent.PRE_SEND_ASSOCIATION_TYPE, object);
+            em.fireEvent(CoreEvent.PRE_SEND_ASSOC_TYPE, object);
         } else if (object instanceof Topic) {
             em.fireEvent(CoreEvent.PRE_SEND_TOPIC, object);
         } else if (object instanceof Assoc) {
             Assoc assoc = (Assoc) object;
-            em.fireEvent(CoreEvent.PRE_SEND_ASSOCIATION, assoc);
+            em.fireEvent(CoreEvent.PRE_SEND_ASSOC, assoc);
             firePreSend(assoc.getDMXObject1());
             firePreSend(assoc.getDMXObject2());
         }
@@ -195,9 +195,9 @@ class JerseyResponseFilter implements ContainerResponseFilter {
         for (Directives.Entry entry : directives) {
             switch (entry.dir) {
             case UPDATE_TOPIC:
-            case UPDATE_ASSOCIATION:
+            case UPDATE_ASSOC:
             case UPDATE_TOPIC_TYPE:
-            case UPDATE_ASSOCIATION_TYPE:
+            case UPDATE_ASSOC_TYPE:
                 firePreSend((DMXObject) entry.arg);
                 break;
             }

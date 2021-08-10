@@ -5,7 +5,9 @@ import dmx from 'dmx-api'
 
 Vue.use(Vuex)
 
-let compCount = 0
+window.addEventListener('resize', e => {
+  store.dispatch('repositionResizer')
+})
 
 const state = {
 
@@ -52,6 +54,8 @@ const state = {
                             //     }
                             //   ]
                             // }
+
+  resizerPos: 0,            // x coordinate in pixel
 
   quillConfig: {
     options: {
@@ -121,7 +125,6 @@ const actions = {
 
   registerComponent (_, compDef) {
     const compDefs = state.compDefs[compDef.mount] || (state.compDefs[compDef.mount] = [])
-    compDef.id = compCount++
     compDefs.push(compDef)
   },
 
@@ -174,12 +177,13 @@ const actions = {
       // The default value must not be overridden by an undefined init value.
       const propsData = {}
       for (const prop in compDef.props) {
-        propsData[prop] = compDef.props[prop](store.state)    // call getter function
+        propsData[prop] = compDef.props[prop](state)    // call getter function
       }
       // 2) instantiate & mount
       // Note: to manually mounted components the store must be passed explicitly resp. "parent" must be set.
       // https://forum.vuejs.org/t/this-store-undefined-in-manually-mounted-vue-component/8756
-      const comp = new Vue({parent, propsData, ...compDef.comp}).$mount(`#mount-${compDef.id}`)
+      const comp = new Vue({parent, propsData, ...compDef.comp}).$mount()
+      parent.$el.appendChild(comp.$el)
       // 3) make props reactive
       for (const prop in compDef.props) {
         watchProp(comp, prop, compDef.props[prop])
@@ -190,6 +194,16 @@ const actions = {
       }
       // TODO: unregister listeners?
     })
+  },
+
+  // Resizer
+
+  positionResizer (_, pos) {
+    state.resizerPos = pos
+  },
+
+  repositionResizer ({dispatch}) {
+    dispatch('positionResizer', document.querySelector('.dmx-topicmap-panel').clientWidth)
   },
 
   //
@@ -205,7 +219,7 @@ const actions = {
   // WebSocket messages
 
   _processDirectives ({dispatch}, directives) {
-    console.log(`Webclient: processing ${directives.length} directives`, directives)
+    // console.log(`Webclient: processing ${directives.length} directives`, directives)
     directives.forEach(dir => {
       switch (dir.type) {
       case 'UPDATE_TOPIC':
@@ -214,10 +228,10 @@ const actions = {
       case 'DELETE_TOPIC':
         dispatch('unselectIf', dir.arg.id)
         break
-      case 'UPDATE_ASSOCIATION':
+      case 'UPDATE_ASSOC':
         displayObjectIf(new dmx.Assoc(dir.arg))
         break
-      case 'DELETE_ASSOCIATION':
+      case 'DELETE_ASSOC':
         dispatch('unselectIf', dir.arg.id)
         break
       }
@@ -233,8 +247,9 @@ const getters = {
     // console.log('object getter', state.object, state.object && state.typeCache.topicTypes[state.object.uri])
     // ### FIXME: the asCompDef() approach does not work at the moment. Editing an comp def would send an
     // update model with by-URI players while the server expects by-ID players.
-    return state.object && (state.object.isType    ? state.object.asType() :
-                            state.object.isCompDef ? state.object.asCompDef() :
+    return state.object && (state.object.isType     ? state.object.asType() :
+                            state.object.isCompDef  ? state.object.asCompDef() :
+                            state.object.isRoleType ? state.object.asRoleType() :
                             state.object)                                                     /* eslint indent: "off" */
     // logical copy in createDetail()/updateDetail() (topicmap-model.js of dmx-cytoscape-renderer module)
   },

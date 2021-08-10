@@ -26,9 +26,9 @@ public final class AccessLayer {
 
     // ------------------------------------------------------------------------------------------------------- Constants
 
-    private static final String URI_PREFIX_TOPIC_TYPE       = "domain.project.topic_type_";
-    private static final String URI_PREFIX_ASSOCIATION_TYPE = "domain.project.assoc_type_";
-    private static final String URI_PREFIX_ROLE_TYPE        = "domain.project.role_type_";
+    private static final String URI_PREFIX_TOPIC_TYPE = "domain.project.topic_type_";
+    private static final String URI_PREFIX_ASSOC_TYPE = "domain.project.assoc_type_";
+    private static final String URI_PREFIX_ROLE_TYPE  = "domain.project.role_type_";
 
     // ---------------------------------------------------------------------------------------------- Instance Variables
 
@@ -144,8 +144,6 @@ public final class AccessLayer {
         }
     }
 
-    // ---
-
     /**
      * Creates a single topic in the DB.
      * No child topics are created.
@@ -162,33 +160,6 @@ public final class AccessLayer {
             return model;
         } catch (Exception e) {
             throw new RuntimeException("Creating single topic failed, model=" + model, e);
-        }
-    }
-
-    /**
-     * Creates a sole type topic in the DB, auto-generates a default type URI if due, and fires POST_CREATE_TOPIC.
-     * No type-specific parts are created.
-     * <p>
-     * Used to create topic types, assoc types, and role types.
-     */
-    private TopicModelImpl createTypeTopic(TopicModelImpl model, String uriPrefix) {
-        try {
-            createSingleTopic(model);
-            // set default URI
-            // If no URI is given the topic gets a default URI based on its ID, if requested.
-            // Note: this must be done *after* the topic is stored. The ID is not known before.
-            // Note: in case no URI was given: once stored a topic's URI is empty (not null).
-            if (model.getUri().equals("")) {
-                model.updateUri(uriPrefix + model.getId());     // update memory + DB
-            }
-            // Note: creating a type does not involve value integration, so POST_CREATE_TOPIC is fired from here.
-            model.postCreate();
-            em.fireEvent(CoreEvent.POST_CREATE_TOPIC, model.instantiate());
-            //
-            return model;
-        } catch (Exception e) {
-            throw new RuntimeException("Creating type topic failed, model=" + model + ", uriPrefix=\"" + uriPrefix +
-                "\"", e);
         }
     }
 
@@ -251,6 +222,10 @@ public final class AccessLayer {
 
     List<AssocModelImpl> getAssocsByType(String assocTypeUri) {
         return filterReadables(_getAssocsByType(assocTypeUri));
+    }
+
+    List<AssocModelImpl> getAssocsByRoleType(String roleTypeUri) {
+        return filterReadables(db.queryAssocsByRoleType(roleTypeUri));
     }
 
     AssocModelImpl getAssocByValue(String key, SimpleValue value) {
@@ -343,7 +318,7 @@ public final class AccessLayer {
      */
     AssocModelImpl createAssoc(AssocModelImpl model) {
         try {
-            em.fireEvent(CoreEvent.PRE_CREATE_ASSOCIATION, model);
+            em.fireEvent(CoreEvent.PRE_CREATE_ASSOC, model);
             model.preCreate();
             //
             // store in DB
@@ -355,7 +330,7 @@ public final class AccessLayer {
             // (_model). Otherwise the programmatic vs. interactive detection would not work (see postCreate() comment
             // at CompDefModelImpl). "model" might be an CompDefModel while "_model" is always an AssocModel.
             model.postCreate();
-            em.fireEvent(CoreEvent.POST_CREATE_ASSOCIATION, _model.instantiate());
+            em.fireEvent(CoreEvent.POST_CREATE_ASSOC, _model.instantiate());
             return _model;
         } catch (Exception e) {
             // Note: do not put model in an exception thrown at web layer. The Webclient would present it to the user.
@@ -370,8 +345,8 @@ public final class AccessLayer {
             AssocModelImpl model = db.fetchAssoc(updateModel.getId());
             updateAssoc(model, updateModel);
             //
-            // Note: there is no possible POST_UPDATE_ASSOCIATION_REQUEST event to fire here (compare to updateTopic()).
-            // It would be equivalent to POST_UPDATE_ASSOCIATION. Per request exactly one association is updated.
+            // Note: there is no possible POST_UPDATE_ASSOC_REQUEST event to fire here (compare to updateTopic()).
+            // It would be equivalent to POST_UPDATE_ASSOC. Per request exactly one association is updated.
             // Its children are always topics (never associations).
         } catch (Exception e) {
             // Note: do not put model in an exception thrown at web layer. The Webclient would present it to the user.
@@ -482,6 +457,21 @@ public final class AccessLayer {
 
     // ---
 
+    RoleTypeModelImpl getRoleType(String roleTypeUri) {
+        return typeStorage.fetchRoleType(getTopicByUri(roleTypeUri));
+    }
+
+    RoleTypeModelImpl getRoleTypeImplicitly(long assocId, String roleTypeUri) {
+        AssocModelImpl assoc = getAssoc(assocId);           // includes READ check
+        if (assoc.playerCount(roleTypeUri) == 0) {
+            throw new IllegalArgumentException("Role type \"" + roleTypeUri + "\" not used by assoc " + assocId + ": " +
+                assoc);
+        }
+        return typeStorage.fetchRoleType(roleTypeUri);      // DB direct access. No permission check.
+    }
+
+    // ---
+
     List<TopicTypeModelImpl> getAllTopicTypes() {
         try {
             List<TopicTypeModelImpl> topicTypes = new ArrayList();
@@ -506,6 +496,18 @@ public final class AccessLayer {
         }
     }
 
+    List<RoleTypeModelImpl> getAllRoleTypes() {
+        try {
+            List<RoleTypeModelImpl> roleTypes = new ArrayList();
+            for (TopicModelImpl roleTypeTopic : getTopicsByType(ROLE_TYPE)) {
+                roleTypes.add(typeStorage.fetchRoleType(roleTypeTopic));
+            }
+            return roleTypes;
+        } catch (Exception e) {
+            throw new RuntimeException("Fetching all role types failed", e);
+        }
+    }
+
     // ---
 
     TopicTypeModelImpl createTopicType(TopicTypeModelImpl model) {
@@ -525,17 +527,39 @@ public final class AccessLayer {
 
     AssocTypeModelImpl createAssocType(AssocTypeModelImpl model) {
         try {
-            em.fireEvent(CoreEvent.PRE_CREATE_ASSOCIATION_TYPE, model);
+            em.fireEvent(CoreEvent.PRE_CREATE_ASSOC_TYPE, model);
             //
             // store in DB
-            createType(model, URI_PREFIX_ASSOCIATION_TYPE);
+            createType(model, URI_PREFIX_ASSOC_TYPE);
             //
-            em.fireEvent(CoreEvent.INTRODUCE_ASSOCIATION_TYPE, model.instantiate());
+            em.fireEvent(CoreEvent.INTRODUCE_ASSOC_TYPE, model.instantiate());
             //
             return model;
         } catch (Exception e) {
             throw new RuntimeException("Creating association type \"" + model.getUri() + "\" failed", e);
         }
+    }
+
+    RoleTypeModelImpl createRoleType(RoleTypeModelImpl model) {
+        // check type URI argument
+        String typeUri = model.getTypeUri();
+        if (typeUri == null) {
+            model.setTypeUri(ROLE_TYPE);
+        } else {
+            if (!typeUri.equals(ROLE_TYPE)) {
+                throw new IllegalArgumentException("A role type is supposed to be of type \"dmx.core.role_type\" " +
+                    "(found: \"" + typeUri + "\")");
+            }
+        }
+        //
+        em.fireEvent(CoreEvent.PRE_CREATE_ROLE_TYPE, model);
+        //
+        // store in DB
+        createRoleType(model, URI_PREFIX_ROLE_TYPE);
+        //
+        em.fireEvent(CoreEvent.INTRODUCE_ROLE_TYPE, model.instantiate());
+        //
+        return model;
     }
 
     // ---
@@ -584,23 +608,6 @@ public final class AccessLayer {
         } catch (Exception e) {
             throw new RuntimeException("Deleting association type \"" + assocTypeUri + "\" failed", e);
         }
-    }
-
-    // ---
-
-    TopicModelImpl createRoleType(TopicModelImpl model) {
-        // check type URI argument
-        String typeUri = model.getTypeUri();
-        if (typeUri == null) {
-            model.setTypeUri(ROLE_TYPE);
-        } else {
-            if (!typeUri.equals(ROLE_TYPE)) {
-                throw new IllegalArgumentException("A role type is supposed to be of type \"dmx.core.role_type\" " +
-                    "(found: \"" + typeUri + "\")");
-            }
-        }
-        //
-        return createTypeTopic(model, URI_PREFIX_ROLE_TYPE);
     }
 
     // ---
@@ -790,7 +797,7 @@ public final class AccessLayer {
      * @throws  AccessControlException  if the current user has no permission.
      */
     void checkAssocReadAccess(long assocId) {
-        em.fireEvent(CoreEvent.CHECK_ASSOCIATION_READ_ACCESS, assocId);
+        em.fireEvent(CoreEvent.CHECK_ASSOC_READ_ACCESS, assocId);
     }
 
     // ---
@@ -806,7 +813,7 @@ public final class AccessLayer {
      * @throws  AccessControlException  if the current user has no permission.
      */
     void checkAssocWriteAccess(long assocId) {
-        em.fireEvent(CoreEvent.CHECK_ASSOCIATION_WRITE_ACCESS, assocId);
+        em.fireEvent(CoreEvent.CHECK_ASSOC_WRITE_ACCESS, assocId);
     }
 
 
@@ -1020,6 +1027,40 @@ public final class AccessLayer {
         //
         typeStorage.storeType(model);                   // store type-specific parts
     }
+
+    private void createRoleType(RoleTypeModelImpl model, String uriPrefix) {
+        createTypeTopic(model, uriPrefix);
+        typeStorage.storeViewConfig(model);
+    }
+
+    /**
+     * Creates a sole type topic in the DB, auto-generates a default type URI if due, and fires POST_CREATE_TOPIC.
+     * No type-specific parts are created.
+     * <p>
+     * Used to create topic types, assoc types, and role types.
+     */
+    private TopicModelImpl createTypeTopic(TopicModelImpl model, String uriPrefix) {
+        try {
+            createSingleTopic(model);
+            // set default URI
+            // If no URI is given the topic gets a default URI based on its ID, if requested.
+            // Note: this must be done *after* the topic is stored. The ID is not known before.
+            // Note: in case no URI was given: once stored a topic's URI is empty (not null).
+            if (model.getUri().equals("")) {
+                model.updateUri(uriPrefix + model.getId());     // update memory + DB
+            }
+            // Note: creating a type does not involve value integration, so POST_CREATE_TOPIC is fired from here.
+            model.postCreate();
+            em.fireEvent(CoreEvent.POST_CREATE_TOPIC, model.instantiate());
+            //
+            return model;
+        } catch (Exception e) {
+            throw new RuntimeException("Creating type topic failed, model=" + model + ", uriPrefix=\"" + uriPrefix +
+                "\"", e);
+        }
+    }
+
+    // ---
 
     private String typeUri(long objectId) {
         return (String) db.fetchProperty(objectId, "typeUri");

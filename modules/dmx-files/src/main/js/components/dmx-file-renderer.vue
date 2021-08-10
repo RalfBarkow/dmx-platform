@@ -1,10 +1,10 @@
 <template>
   <div class="dmx-file-renderer">
     <pre v-if="isText">{{text}}</pre>
-    <img v-if="isImage" :src="fileUrl">
+    <img v-if="isImage" :src="fileUrl" @load="update">
     <audio v-if="isAudio" :src="fileUrl" controls></audio>
-    <video v-if="isVideo" :src="fileUrl" controls></video>
-    <embed v-if="isPDF" :src="fileUrl" :type="mediaType" class="pdf"></embed>
+    <video v-if="isVideo" :src="fileUrl" controls @loadeddata="update"></video>
+    <embed v-if="isPDF" :src="fileUrl" :type="mediaType" class="pdf" @load="update"></embed>
     <dmx-value-renderer :object="object" :level="0" :path="[]" :context="context" :no-heading="true">
     </dmx-value-renderer>
   </div>
@@ -72,6 +72,12 @@ export default {
   },
 
   methods: {
+
+    update() {
+      // console.log("update")
+      this.context.updated()
+    },
+
     initText () {
       if (this.isText) {
         this.$store.dispatch('getFileContent', this.path).then(content => {

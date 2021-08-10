@@ -35,6 +35,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.awt.Desktop;
+import java.awt.HeadlessException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -138,17 +139,17 @@ public class FilesPlugin extends PluginActivator implements FilesService, Static
             logger.info(operation);
             //
             // 1) pre-checks
-            File file = absolutePath(repoPath);     // throws FileRepositoryException
-            checkExistence(file);                   // throws FileRepositoryException
+            File directory = absolutePath(repoPath);     // throws FileRepositoryException
+            checkExistence(directory);                   // throws FileRepositoryException
             //
             // 2) check if topic already exists
-            Topic folderTopic = fetchFolderTopic(repoPath(file));
+            Topic folderTopic = fetchFolderTopic(repoPath(directory));
             if (folderTopic != null) {
                 logger.info(operation + " SKIPPED -- already exists");
                 return folderTopic.loadChildTopics();
             }
             // 3) create topic
-            return createFolderTopic(file);
+            return createFolderTopic(directory);
         } catch (FileRepositoryException e) {
             throw new WebApplicationException(new RuntimeException(operation + " failed", e), e.getStatus());
         } catch (Exception e) {
@@ -194,9 +195,9 @@ public class FilesPlugin extends PluginActivator implements FilesService, Static
             File repoFile = unusedPath(directory, file);
             file.write(repoFile);
             //
-            // 3) create topic (and folder assoc)
+            // 3) file system representation
             Topic fileTopic = createFileTopic(repoFile);
-            Topic folderTopic = fetchFolderTopic(repoPath);
+            Topic folderTopic = fetchOrCreateFolderTopic(directory);
             RelatedTopic topic = createFolderAssoc(folderTopic.getId(), fileTopic);
             return new StoredFile(repoFile.getName(), repoPath(fileTopic), fileTopic.getId(), topic);
         } catch (Exception e) {
@@ -248,9 +249,9 @@ public class FilesPlugin extends PluginActivator implements FilesService, Static
             if (!success) {
                 throw new RuntimeException("File.mkdir() failed, repoFile=\"" + repoFile + "\"");
             }
-            // 3) create folder topic (and parent assoc)
+            // 3) file system representation
             Topic folder = createFolderTopic(repoFile);
-            Topic parentFolder = fetchFolderTopic(repoPath);
+            Topic parentFolder = fetchOrCreateFolderTopic(directory);
             return createFolderAssoc(parentFolder.getId(), folder);
         } catch (Exception e) {
             throw new RuntimeException(operation + " failed", e);
@@ -407,6 +408,10 @@ public class FilesPlugin extends PluginActivator implements FilesService, Static
             //
             // Note: a HTTP GET method MUST return a non-void type
             return 0;
+        } catch (HeadlessException e) {
+            // fail silently
+            logger.info("### File opening ABORTED -- this is a headless installation");
+            return 0;
         } catch (FileRepositoryException e) {
             throw new WebApplicationException(new RuntimeException(operation + " failed", e), e.getStatus());
         } catch (Exception e) {
@@ -494,6 +499,14 @@ public class FilesPlugin extends PluginActivator implements FilesService, Static
 
 
     // === File System Representation ===
+
+    private Topic fetchOrCreateFolderTopic(File directory) throws Exception {
+        Topic folderTopic = fetchFolderTopic(repoPath(directory));
+        if (folderTopic == null) {
+            folderTopic = createFolderTopic(directory);
+        }
+        return folderTopic;
+    }
 
     /**
      * Fetches the File topic representing the file at the given repository path.

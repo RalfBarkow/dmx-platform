@@ -20,19 +20,20 @@ export default ({store, dmx}) => {
             right: state.compDefs['toolbar-right']
           }),
           contextCommands: state => state.contextCommands,
+          dropHandler:     state => state.dropHandler,
           quillConfig:     state => state.quillConfig
         },
         listeners: {
           'topic-select':         id             => store.dispatch('selectTopic', id),
           'topic-unselect':       id             => store.dispatch('unselectTopic', id),
           'topic-double-click':   topic          => invokeDoubleClickHandler(topic),
-          'topic-drag':           ({id, pos})    => store.dispatch('setTopicPosition', {id, pos}),
+          'topic-dragged':        ({id, pos})    => store.dispatch('setTopicPosition', {id, pos}),
+          'topics-dragged':       topicCoords    => store.dispatch('setTopicPositions', topicCoords),
           'topic-pin':            ({id, pinned}) => store.dispatch('setTopicPinned', {
                                                                                         topicId: id,
                                                                                         pinned,
                                                                                         showDetails: showDetails()
                                                                                      }),      /* eslint indent: "off" */
-          'topics-drag':          topicCoords    => store.dispatch('setTopicPositions', topicCoords),
           'assoc-create':         playerIds      => store.dispatch('createAssoc', playerIds),
           'assoc-select':         id             => store.dispatch('selectAssoc', id),
           'assoc-unselect':       id             => store.dispatch('unselectAssoc', id),

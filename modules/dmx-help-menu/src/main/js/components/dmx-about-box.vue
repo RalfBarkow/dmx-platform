@@ -5,11 +5,11 @@
     <div>
       <div class="field">
         <div class="field-label">Version</div>
-        5.2
+        5.2.1
       </div>
       <div class="field">
         <div class="field-label">Released</div>
-        Jun 26, 2021
+        Aug 27, 2021
       </div>
       <div class="field">
         <div class="field-label">License</div>

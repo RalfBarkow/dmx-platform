@@ -1,12 +1,16 @@
 package systems.dmx.accesscontrol;
 
 import systems.dmx.core.Assoc;
+import systems.dmx.core.DMXObject;
+import systems.dmx.core.RelatedTopic;
 import systems.dmx.core.Topic;
 import systems.dmx.core.service.accesscontrol.Credentials;
 import systems.dmx.core.service.accesscontrol.Permissions;
 import systems.dmx.core.service.accesscontrol.SharingMode;
+import systems.dmx.core.util.IdList;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 
@@ -16,7 +20,7 @@ public interface AccessControlService {
     // ------------------------------------------------------------------------------------------------------- Constants
 
     // Admin user account
-    static final String ADMIN_USERNAME = "admin";
+    static final String ADMIN_USERNAME = "admin";       // DEPRECATED; use ADMIN_USERNAME from Constants.java instead
     static final String ADMIN_INITIAL_PASSWORD = System.getProperty("dmx.security.initial_admin_password", "");
 
     // Administration workspace
@@ -153,7 +157,6 @@ public interface AccessControlService {
      * Returns the owner of a workspace.
      *
      * @return  The username of the owner, or <code>null</code> if no owner is set.
-     *          ### TODO: should throw an exception instead of returning null
      */
     String getWorkspaceOwner(long workspaceId);
 
@@ -164,12 +167,27 @@ public interface AccessControlService {
      */
     void setWorkspaceOwner(Topic workspace, String username);
 
+    /**
+     * Retrieves the OWNER and stores it in the given topic's model (under synthetic child type URI
+     * <code>dmx.accesscontrol.owner</code>).
+     */
+    void enrichWithOwnerInfo(Topic workspace);
+
     // ---
 
     /**
-     * Makes the given user a member of the given workspace.
+     * Returns the workspaces of the given user.
+     *
+     * @return      a list of Workspace topics. The "relating" part is the Membership association.
      */
-    void createMembership(String username, long workspaceId);
+    List<RelatedTopic> getMemberships(String username);
+
+    /**
+     * Returns the members of the given workspace.
+     *
+     * @return      a list of Username topics. The "relating" part is the Membership association.
+     */
+    List<RelatedTopic> getMemberships(long workspaceId);
 
     /**
      * Checks if a user is a member of the given workspace.
@@ -182,6 +200,29 @@ public interface AccessControlService {
      * @return  <code>true</code> if the user is a member, <code>false</code> otherwise.
      */
     boolean isMember(String username, long workspaceId);
+
+    /**
+     * @return      the Membership assoc between the given username and workspace, or <code>null</code> if the
+     *              user is not a member.
+     */
+    Assoc getMembership(String username, long workspaceId);
+
+    /**
+     * Makes the given user a member of the given workspace.
+     */
+    void createMembership(String username, long workspaceId);
+
+    /**
+     * @return      a list of Workspace topics. The "relating" part is the Membership association.
+     */
+    List<RelatedTopic> bulkUpdateMemberships(String username, IdList addWorkspaceIds, IdList removeWorkspaceIds);
+
+    /**
+     * @return      a list of Username topics. The "relating" part is the Membership association.
+     */
+    List<RelatedTopic> bulkUpdateMemberships(long workspaceId, IdList addUserIds, IdList removeUserIds);
+
+    // #### TODO: add deleteMembership()
 
     // ---
 
@@ -215,6 +256,12 @@ public interface AccessControlService {
      * @return  The username of the modifier, or <code>null</code> if no modifier is set.
      */
     String getModifier(long objectId);
+
+    /**
+     * Retrieves the CREATOR/MODIFIER usernames and stores them in the given object's model (under synthetic child type
+     * URIs <code>dmx.accesscontrol.creator</code> and <code>dmx.accesscontrol.modifier</code>).
+     */
+    void enrichWithUserInfo(DMXObject object);
 
 
 

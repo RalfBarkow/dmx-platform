@@ -157,7 +157,7 @@ public class TopicmapsPlugin extends PluginActivator implements TopicmapsService
             // Note: a Topicmap Context assoc is owned by "System"; it gets no workspace assignment
             dmx.getPrivilegedAccess().runInWorkspaceContext(-1, () -> {     // throws Exception
                 if (getTopicMapcontext(topicmapId, topicId) != null) {      // TODO: idempotence?
-                    throw new RuntimeException("Topic " + topicId + " already added to topicmap" + topicmapId);
+                    throw new RuntimeException("Topic " + topicId + " already added to topicmap " + topicmapId);
                 }
                 createTopicMapcontext(topicmapId, topicId, viewProps);
                 return null;
@@ -677,7 +677,9 @@ public class TopicmapsPlugin extends PluginActivator implements TopicmapsService
         ));
         viewProps.store(topicMapcontext);
         //
-        ViewTopic topic = mf.newViewTopic(dmx.getTopic(topicId).getModel(), viewProps);
+        // Note: we load the child topics as a frontend might need them
+        Topic _topic = dmx.getTopic(topicId).loadChildTopics();     // extra variable makes type inference work
+        ViewTopic topic = mf.newViewTopic(_topic.getModel(), viewProps);
         me.addTopicToTopicmap(topicmapId, topic);
     }
 

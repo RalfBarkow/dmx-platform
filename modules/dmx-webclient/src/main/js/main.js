@@ -8,12 +8,13 @@ import onHttpError from './error-handler'
 import extraElementUI from './element-ui'
 import './websocket'
 
-console.log('[DMX] 2021/11/29')
+console.log('[DMX] 2022/08/23')
 
 // 1) Init dmx library
 // The dmx library must be inited *before* the dmx-webclient component is instantiated.
 // The dmx-webclient component relies on the "typeCache" store module as registered by dmx.init(). ### TODO: still true?
-const dmxReady = dmx.init({
+const typeCacheReady = dmx.init({
+  topicTypes: 'all',
   store,
   onHttpError,
   iconRenderers: store.state.iconRenderers
@@ -64,7 +65,7 @@ store.dispatch('registerDetailRenderer', {
 Promise.all([
   // Both, the Topicmap Panel and the Detail Panel, rely on a populated type cache.
   // The type cache must be ready *before* "initialNavigation" is dispatched.
-  dmxReady,
+  typeCacheReady,
   // Initial navigation might involve "select the 1st workspace", so the workspace
   // topics must be already loaded.
   store.state.workspaces.ready
@@ -72,13 +73,13 @@ Promise.all([
   store.dispatch('initialNavigation')
 })
 
-// Windows workaround to suppress the browser's native context menu on
-// - right-clicking the canvas (to invoke search/create dialog)
-// - right-clicking a topic/assoc (to invoke Cytoscape context menu)
-// - a dialog appears as the reaction of a Cytoscape context menu command
+// 6) Windows workaround to suppress the browser's native context menu on
+//   - right-clicking the canvas (to invoke search/create dialog)
+//   - right-clicking a topic/assoc (to invoke Cytoscape context menu)
+//   - a dialog appears as the reaction of a Cytoscape context menu command
 // Note: in contrast to other platforms on Windows the target of the "contextmenu" event is not the canvas but
-// - a dialog (or its wrapper) e.g. the search/create dialog
-// - a message box (or its wrapper) e.g. the deletion warning
+//   - a dialog (or its wrapper) e.g. the search/create dialog
+//   - a message box (or its wrapper) e.g. the deletion warning
 // Note: in contrast to a dialog the message box is not a child of <dmx-webclient> component, so we attach
 // the listener directly to <body>.
 document.body.addEventListener('contextmenu', e => {

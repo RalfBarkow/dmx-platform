@@ -650,14 +650,14 @@
 								"__type" : "time",
 								"time" : {
 									"__type" : "dateAndTime",
-									"dateAndTimeString" : "2022-09-06T00:56:01.007984+02:00"
+									"dateAndTimeString" : "2022-09-06T00:52:38.948756+02:00"
 								}
 							},
 							"uid" : {
 								"__type" : "uid",
 								"uidString" : "7/MxqlekDQCJYwKEC++ErA=="
 							},
-							"code" : "'/Users/rgb/Projects/dmx-platform/modules-external/dmx-zettelkasten/src/main/resources/web' asFileReference"
+							"code" : "'/Users/rgb/Projects/dmx-platform' asFileReference"
 						}
 					]
 				},

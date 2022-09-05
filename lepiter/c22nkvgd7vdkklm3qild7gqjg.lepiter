@@ -100,7 +100,45 @@
 										"__type" : "textSnippet",
 										"children" : {
 											"__type" : "snippets",
-											"items" : [ ]
+											"items" : [
+												{
+													"__type" : "textSnippet",
+													"children" : {
+														"__type" : "snippets",
+														"items" : [ ]
+													},
+													"createEmail" : {
+														"__type" : "email",
+														"emailString" : "<unknown>"
+													},
+													"createTime" : {
+														"__type" : "time",
+														"time" : {
+															"__type" : "dateAndTime",
+															"dateAndTimeString" : "2022-09-06T01:31:37.974253+02:00"
+														}
+													},
+													"editEmail" : {
+														"__type" : "email",
+														"emailString" : "<unknown>"
+													},
+													"editTime" : {
+														"__type" : "time",
+														"time" : {
+															"__type" : "dateAndTime",
+															"dateAndTimeString" : "2022-09-06T01:32:17.202255+02:00"
+														}
+													},
+													"uid" : {
+														"__type" : "uid",
+														"uidString" : "DoXFN1ikDQCafmNlDirr9Q=="
+													},
+													"paragraphStyle" : {
+														"__type" : "textStyle"
+													},
+													"string" : "How to update a TypeURI in a migration? [forum.dmx.systems](https://forum.dmx.systems/t/how-to-update-a-typeuri-in-a-migration/100)"
+												}
+											]
 										},
 										"createEmail" : {
 											"__type" : "email",
@@ -121,7 +159,7 @@
 											"__type" : "time",
 											"time" : {
 												"__type" : "dateAndTime",
-												"dateAndTimeString" : "2022-09-06T00:32:40.272263+02:00"
+												"dateAndTimeString" : "2022-09-06T01:24:30.386016+02:00"
 											}
 										},
 										"uid" : {
@@ -131,7 +169,7 @@
 										"paragraphStyle" : {
 											"__type" : "textStyle"
 										},
-										"string" : "* zettelkasten.zettel"
+										"string" : "* zettelkasten.zettel (typeUri)"
 									},
 									{
 										"__type" : "textSnippet",
@@ -269,6 +307,43 @@
 					"uidString" : "Za5PV1ekDQCJOen7C++ErA=="
 				},
 				"code" : "'/Users/rgb/Downloads/4050.json' asFileReference"
+			},
+			{
+				"__type" : "textSnippet",
+				"children" : {
+					"__type" : "snippets",
+					"items" : [ ]
+				},
+				"createEmail" : {
+					"__type" : "email",
+					"emailString" : "<unknown>"
+				},
+				"createTime" : {
+					"__type" : "time",
+					"time" : {
+						"__type" : "dateAndTime",
+						"dateAndTimeString" : "2022-09-06T01:33:39.832295+02:00"
+					}
+				},
+				"editEmail" : {
+					"__type" : "email",
+					"emailString" : "<unknown>"
+				},
+				"editTime" : {
+					"__type" : "time",
+					"time" : {
+						"__type" : "dateAndTime",
+						"dateAndTimeString" : "2022-09-06T01:34:07.183792+02:00"
+					}
+				},
+				"uid" : {
+					"__type" : "uid",
+					"uidString" : "3aoLP1ikDQCaf5IWDirr9Q=="
+				},
+				"paragraphStyle" : {
+					"__type" : "textStyle"
+				},
+				"string" : "DMX Forum: Authentication via curl. [page](https://forum.dmx.systems/t/authentication-via-curl/106)"
 			},
 			{
 				"__type" : "pharoSnippet",

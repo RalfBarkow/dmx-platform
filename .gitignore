@@ -25,3 +25,4 @@ commit-message.txt
 *.tmproj
 *.sublime-project
 *.sublime-workspace
+**/.project

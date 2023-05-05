@@ -230,6 +230,20 @@ public interface PrivilegedAccess {
      */
     Long getWorkspaceContext();
 
+    // ---
+
+    /**
+     * Deletes a Workspace topic and all its Memberships.
+     * The current user needs WRITE permission to the workspace -- she must not necessarily be the workspace owner.
+     * <p>
+     * IMPORTANT: the actual workspace content is expected to be deleted already.
+     * <p>
+     * This is a privileged method for technical reasons: deleting a workspace topic involves deleting all its
+     * Membership associations. As soon as the current user's membership is deleted she would, in case she is
+     * not the workspace owner, have no permission anymore for deleting the Workspace topic eventually.
+     */
+    void deleteWorkspaceTopic(long workspaceId);
+
 
 
     // === Topicmaps ===
@@ -285,6 +299,8 @@ public interface PrivilegedAccess {
     /**
      * Returns true if an "Email Address" (dmx.contacts.email_address) topic with the given value exists,
      * false otherwise.
+     * <p>
+     * The Email Address search is case-insesitive.
      * <p>
      * Access control is bypassed.
      */

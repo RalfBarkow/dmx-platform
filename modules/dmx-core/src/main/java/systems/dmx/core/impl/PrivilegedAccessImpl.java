@@ -215,7 +215,7 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
             }
             throw new RuntimeException("User \"" + username + "\" has no private workspace");
         } catch (Exception e) {
-            throw new RuntimeException("Private workspace of user \"" + username + "\" can't be determined", e);
+            throw new RuntimeException("Getting private workspace of user \"" + username + "\" failed", e);
         }
     }
 
@@ -341,7 +341,7 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
             }
             return workspaceId;
         } catch (Exception e) {
-            throw new RuntimeException("Workspace assignment of object " + objectId + " can't be determined", e);
+            throw new RuntimeException("Getting workspace assignment of object " + objectId + " failed", e);
         }
     }
 
@@ -377,6 +377,18 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     @Override
     public Long getWorkspaceContext() {
         return contextTracker.getValue();
+    }
+
+    // ---
+
+    @Override
+    public void deleteWorkspaceTopic(long workspaceId) {
+        TopicModelImpl workspace = al.getTopic(workspaceId);
+        String typeUri = workspace.getTypeUri();
+        if (!typeUri.equals(WORKSPACE)) {
+            throw new RuntimeException("Topic " + workspaceId + " is not a workspace (but a \"" + typeUri + "\")");
+        }
+        al.deleteTopic(workspace);
     }
 
 
@@ -562,9 +574,13 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     }
 
     private void checkWorkspaceId(long workspaceId) {
-        String typeUri = getTypeUri(workspaceId);
-        if (!typeUri.equals(WORKSPACE)) {
-            throw new RuntimeException("Object " + workspaceId + " is not a workspace, but a \"" + typeUri + "\"");
+        try {
+            String typeUri = getTypeUri(workspaceId);
+            if (!typeUri.equals(WORKSPACE)) {
+                throw new RuntimeException("Object " + workspaceId + " is not a workspace (but a \"" + typeUri + "\")");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Checking workspace ID " + workspaceId + " failed", e);
         }
     }
 
@@ -603,7 +619,8 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
 
     private String _getUsername(String emailAddress) {
         String username = null;
-        for (TopicModelImpl emailAddressTopic : al.db.fetchTopics(EMAIL_ADDRESS, emailAddress)) {
+        // perform case-insesitive email address search
+        for (TopicModelImpl emailAddressTopic : al.db.queryTopicsFulltext(EMAIL_ADDRESS, emailAddress)) {
             TopicModel usernameTopic = emailAddressTopic.getRelatedTopic(USER_MAILBOX, CHILD, PARENT, USERNAME);
             if (usernameTopic != null) {
                 if (username != null) {
@@ -654,8 +671,8 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
             throw new RuntimeException("Unknown workspace \"" + uri + "\"");
         }
         if (!workspace.getTypeUri().equals(WORKSPACE)) {
-            throw new RuntimeException("Topic \"" + uri + "\" is not a workspace but a \"" + workspace.getTypeUri() +
-                "\"");
+            throw new RuntimeException("Topic \"" + uri + "\" is not a workspace (but a \"" + workspace.getTypeUri() +
+                "\")");
         }
         //
         return workspace;

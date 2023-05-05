@@ -17,7 +17,10 @@ import systems.dmx.core.DMXType;
 import systems.dmx.core.RoleType;
 import systems.dmx.core.Topic;
 import systems.dmx.core.TopicType;
+import systems.dmx.core.model.AssocModel;
+import systems.dmx.core.model.PlayerModel;
 import systems.dmx.core.model.TopicModel;
+import systems.dmx.core.model.facets.FacetValueModel;
 import systems.dmx.core.osgi.PluginActivator;
 import systems.dmx.core.service.Cookies;
 import systems.dmx.core.service.DirectivesResponse;
@@ -29,10 +32,10 @@ import systems.dmx.core.service.event.IntroduceRoleType;
 import systems.dmx.core.service.event.IntroduceTopicType;
 import systems.dmx.core.service.event.PostCreateAssoc;
 import systems.dmx.core.service.event.PostCreateTopic;
-import systems.dmx.core.service.event.PreDeleteTopic;
 
 import org.codehaus.jettison.json.JSONObject;
 
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -57,8 +60,7 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
                                                                                     IntroduceAssocType,
                                                                                     IntroduceRoleType,
                                                                                     PostCreateTopic,
-                                                                                    PostCreateAssoc,
-                                                                                    PreDeleteTopic {
+                                                                                    PostCreateAssoc {
 
     // ------------------------------------------------------------------------------------------------------- Constants
 
@@ -77,14 +79,9 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
 
     // ---------------------------------------------------------------------------------------------- Instance Variables
 
-    @Inject
-    private FacetsService facetsService;
-
-    @Inject
-    private TopicmapsService topicmapsService;
-
-    @Inject
-    private ConfigService configService;
+    @Inject private FacetsService facetsService;
+    @Inject private TopicmapsService topicmapsService;
+    @Inject private ConfigService configService;
 
     private Messenger me = new Messenger();
 
@@ -136,6 +133,20 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
             return workspace;
         } catch (Exception e) {
             throw new RuntimeException(operation + " failed" + info, e);
+        }
+    }
+
+    @DELETE
+    @Path("/{workspaceId}")
+    @Transactional
+    @Override
+    public void deleteWorkspace(@PathParam("workspaceId") long workspaceId) {
+        try {
+            checkWorkspaceWriteAccess(workspaceId);
+            deleteWorkspaceContent(workspaceId);
+            dmx.getPrivilegedAccess().deleteWorkspaceTopic(workspaceId);
+        } catch (Exception e) {
+            throw new RuntimeException("Deleting workspace " + workspaceId + " failed", e);
         }
     }
 
@@ -384,7 +395,7 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
     public void postCreateTopic(Topic topic) {
         // Note: when editing a workspace its parts ("Workspace Name" and "Workspace Description") must not be assigned
         // to the workspace itself. This would create an endless recursion while bubbling the modification timestamp.
-        if (isWorkspacePart(topic)) {
+        if (isWorkspaceConstituent(topic.getModel())) {
             return;
         }
         //
@@ -411,7 +422,7 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
     @Override
     public void postCreateAssoc(Assoc assoc) {
         // Note: we must avoid a vicious circle that would occur when the association is an workspace assignment.
-        if (isWorkspaceAssignment(assoc)) {
+        if (isWorkspaceConstituent(assoc.getModel())) {
             return;
         }
         //
@@ -428,19 +439,6 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
         // Note: for an object's initial workspace assignment checking the object's WRITE permission would fail
         // as that permission is granted only by the very workspace assignment we're about to create.
         _assignToWorkspace(assoc, workspaceId);
-    }
-
-    // ---
-
-    /**
-     * When a workspace is about to be deleted its entire content must be deleted.
-     */
-    @Override
-    public void preDeleteTopic(Topic topic) {
-        if (topic.getTypeUri().equals(WORKSPACE)) {
-            long workspaceId = topic.getId();
-            deleteWorkspaceContent(workspaceId);
-        }
     }
 
 
@@ -504,13 +502,20 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
      */
     private void __assignToWorkspace(DMXObject object, long workspaceId) {
         // 1) create assignment association
-        facetsService.updateFacet(object, WORKSPACE_FACET,
-            mf.newFacetValueModel(WORKSPACE + "#" + WORKSPACE_ASSIGNMENT).setRef(workspaceId)
-        );
-        // Note: we are refering to an existing workspace. So we must set a topic *reference* (using setRef()).
+        FacetValueModel value = mf.newFacetValueModel(WORKSPACE + "#" + WORKSPACE_ASSIGNMENT);
+        if (workspaceId != -1) {
+            value.setRef(workspaceId);
+        } else {
+            value.setDeletionRef(workspaceId);
+        }
+        facetsService.updateFacet(object, WORKSPACE_FACET, value);
         //
         // 2) store assignment property
-        object.setProperty(PROP_WORKSPACE_ID, workspaceId, true);   // addToIndex=true
+        if (workspaceId != -1) {
+            object.setProperty(PROP_WORKSPACE_ID, workspaceId, true);   // addToIndex=true
+        } else {
+            object.removeProperty(PROP_WORKSPACE_ID);
+        }
     }
 
     /**
@@ -523,20 +528,24 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
      * If any check fails an exception is thrown.
      *
      * @param   object          the object to check; if null no object check is performed
-     * @param   workspaceId     the workspace ID to check
+     * @param   workspaceId     the ID of the workspace to check; if -1 no workspace related checks are performed
      */
     private void checkAssignmentArgs(DMXObject object, long workspaceId) {
-        Topic workspace = dmx.getTopic(workspaceId);
-        String typeUri = workspace.getTypeUri();
-        if (!typeUri.equals(WORKSPACE)) {
-            throw new IllegalArgumentException("Topic " + workspaceId + " is not a workspace (but a \"" + typeUri +
-                "\")");
+        if (workspaceId != -1) {
+            checkWorkspaceWriteAccess(workspaceId);
         }
-        //
-        workspace.checkWriteAccess();       // throws AccessControlException
         if (object != null) {
             object.checkWriteAccess();      // throws AccessControlException
         }
+    }
+
+    private void checkWorkspaceWriteAccess(long workspaceId) {
+        Topic workspace = dmx.getTopic(workspaceId);
+        String typeUri = workspace.getTypeUri();
+        if (!typeUri.equals(WORKSPACE)) {
+            throw new RuntimeException("Topic " + workspaceId + " is not a workspace (but a \"" + typeUri + "\")");
+        }
+        workspace.checkWriteAccess();       // throws AccessControlException
     }
 
     // ---
@@ -545,6 +554,7 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
         try {
             // 1) delete instances by type
             // Note: also instances assigned to other workspaces must be deleted
+            // FIXME: privileged deletion; current user might have no WRITE access for other workspace
             for (Topic topicType : getAssignedTopics(workspaceId, TOPIC_TYPE)) {
                 String typeUri = topicType.getUri();
                 for (Topic topic : dmx.getTopicsByType(typeUri)) {
@@ -564,7 +574,11 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
                 topic.delete();
             }
             for (Assoc assoc : getAssignedAssocs(workspaceId)) {
-                assoc.delete();
+                // TODO: can't use AC constant -> cyclic dependency
+                // TODO: move Membership type to Workspaces module?
+                if (!assoc.getTypeUri().equals("dmx.accesscontrol.membership")) {
+                    assoc.delete();
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException("Deleting content of workspace " + workspaceId + " failed", e);
@@ -577,14 +591,39 @@ public class WorkspacesPlugin extends PluginActivator implements WorkspacesServi
         return object.getUri().startsWith("dmx.");
     }
 
-    private boolean isWorkspacePart(Topic topic) {
+    // Workspace constituents get no workspace assignments itself. They might land in the wrong workspace and would
+    // be accidentally deleted along with it. (We don't assign to the workspace itself for pragmatic reasons.)
+    // Note: while updating a workspace new Name and Description topics might be created.
+    private boolean isWorkspaceConstituent(TopicModel topic) {
         String typeUri = topic.getTypeUri();
         return typeUri.equals(WORKSPACE_NAME) ||
                typeUri.equals(WORKSPACE_DESCRIPTION);
     }
 
-    private boolean isWorkspaceAssignment(Assoc assoc) {
-        return assoc.getTypeUri().equals(WORKSPACE_ASSIGNMENT);
+    // Workspace constituents get no workspace assignments itself. They might land in the wrong workspace and would
+    // be accidentally deleted along with it. (We don't assign to the workspace itself for pragmatic reasons.)
+    // Note: while updating a workspace new associations to Name, Description and Sharing Mode topics might be created.
+    // Note: we don't rely on Composition associations to allow applications to rely on custom types.
+    // Note: we can't call assoc.getDMXObjectByRole() as this would build an entire object model, but its "value"
+    // is not yet available in case the given association is part of the player's composite structure.
+    // Compare to DMXUtils.getPlayerModels()
+    // Compare to AssocModelImpl.duplicateCheck()
+    private boolean isWorkspaceConstituent(AssocModel assoc) {
+        if (assoc.getTypeUri().equals(WORKSPACE_ASSIGNMENT)) {
+            return true;
+        } else {
+            PlayerModel parent = assoc.getPlayerByRole(PARENT);
+            PlayerModel child = assoc.getPlayerByRole(CHILD);
+            if (parent != null && child != null) {
+                String typeUri = child.getTypeUri();
+                if (parent.getTypeUri().equals(WORKSPACE) && (typeUri.equals(WORKSPACE_NAME) ||
+                                                              typeUri.equals(WORKSPACE_DESCRIPTION) ||
+                                                              typeUri.equals(SHARING_MODE))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ---

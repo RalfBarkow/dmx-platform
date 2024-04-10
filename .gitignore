@@ -1,9 +1,9 @@
 /dmx-db/
+/dmx-db-*/
 /dmx-files/
 /runner/
 /bundle-deploy/
 /bundle-disabled/
-/modules/dmx-webclient/src/main/resources/web/
 /modules-external/
 /modules-nodejs/
 
@@ -11,6 +11,7 @@ target/
 node_modules/
 
 *~
+.project
 .classpath
 .settings
 .shell_history
@@ -25,4 +26,5 @@ commit-message.txt
 *.tmproj
 *.sublime-project
 *.sublime-workspace
-**/.project
+
+*.bak

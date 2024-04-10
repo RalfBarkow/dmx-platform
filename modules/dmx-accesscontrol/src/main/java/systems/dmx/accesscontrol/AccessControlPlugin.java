@@ -11,6 +11,7 @@ import systems.dmx.config.ConfigTarget;
 import static systems.dmx.core.Constants.*;
 import systems.dmx.core.Assoc;
 import systems.dmx.core.AssocType;
+import systems.dmx.core.ChildTopics;
 import systems.dmx.core.DMXObject;
 import systems.dmx.core.RelatedTopic;
 import systems.dmx.core.Topic;
@@ -18,6 +19,7 @@ import systems.dmx.core.TopicType;
 import systems.dmx.core.model.AssocModel;
 import systems.dmx.core.model.AssocPlayerModel;
 import systems.dmx.core.model.PlayerModel;
+import systems.dmx.core.model.RelatedTopicModel;
 import systems.dmx.core.model.SimpleValue;
 import systems.dmx.core.model.TopicModel;
 import systems.dmx.core.osgi.PluginActivator;
@@ -38,6 +40,7 @@ import systems.dmx.core.service.event.CheckTopicReadAccess;
 import systems.dmx.core.service.event.CheckTopicWriteAccess;
 import systems.dmx.core.service.event.PostCreateAssoc;
 import systems.dmx.core.service.event.PostCreateTopic;
+import systems.dmx.core.service.event.PostDeleteTopic;
 import systems.dmx.core.service.event.PostUpdateAssoc;
 import systems.dmx.core.service.event.PostUpdateTopic;
 import systems.dmx.core.service.event.PreCreateAssoc;
@@ -97,6 +100,7 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
                                                                                           PreUpdateTopic,
                                                                                           PostCreateTopic,
                                                                                           PostCreateAssoc,
+                                                                                          PostDeleteTopic,
                                                                                           PostUpdateTopic,
                                                                                           PostUpdateAssoc,
                                                                                           ServiceRequestFilter,
@@ -114,15 +118,14 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
         ANONYMOUS_WRITE_ALLOWED);
     private static final String SUBNET_FILTER = System.getProperty("dmx.security.subnet_filter", "127.0.0.1/32");
     private static final boolean NEW_ACCOUNTS_ARE_ENABLED = Boolean.parseBoolean(
-        System.getProperty("dmx.security.new_accounts_are_enabled", "true"));
+        System.getProperty("dmx.security.new_accounts_are_enabled", "true")
+    );
+    private static final String SITE_SALT = System.getProperty("dmx.security.site_salt", "");
     // Note: the default values are required in case no config file is in effect. This applies when DM is started
     // via feature:install from Karaf. The default values must match the values defined in project POM.
     private static final boolean IS_PUBLIC_INSTALLATION = ANONYMOUS_READ_ALLOWED.equals("ALL");
 
     private static final String AUTHENTICATION_REALM = "DMX";
-
-    // ### TODO: copy in Credentials.java
-    private static final String ENCODED_PASSWORD_PREFIX = "-SHA256-";
 
     // Events
     private static DMXEvent POST_LOGIN_USER = new DMXEvent(PostLoginUser.class) {
@@ -265,18 +268,22 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
         // Note: a User Account topic (and its child topics) requires special workspace assignments (see next step 3).
         // So we suppress standard workspace assignment. (We can't set the actual workspace here as privileged
         // "assignToWorkspace" calls are required.)
+        String salt = JavaUtils.random256();
         Topic userAccount = pa.runInWorkspaceContext(-1, () ->
             dmx.createTopic(mf.newTopicModel(USER_ACCOUNT, mf.newChildTopicsModel()
                 .setRef(USERNAME, usernameTopic.getId())
-                .set(PASSWORD, cred.password)))
+                .set(PASSWORD, JavaUtils.encodeSHA256(SITE_SALT + salt + cred.password))))
         );
+        logger.info("### Salting password of user \"" + cred.username + "\"");
+        RelatedTopic passwordTopic = userAccount.getChildTopics().getTopic(PASSWORD);
+        passwordTopic.setProperty(SALT, salt, false);     // addToIndex=false
         // 3) assign user account and password to private workspace
         // Note: the current user has no READ access to the private workspace just created.
         // Privileged assignToWorkspace() calls are required (instead of using the Workspaces service).
-        Topic passwordTopic = userAccount.getChildTopics().getTopic(PASSWORD);
         long privateWorkspaceId = pa.getPrivateWorkspace(username).getId();
         pa.assignToWorkspace(userAccount, privateWorkspaceId);
         pa.assignToWorkspace(passwordTopic, privateWorkspaceId);
+        pa.assignToWorkspace(passwordTopic.getRelatingAssoc(), privateWorkspaceId);
         //
         return usernameTopic;
     }
@@ -533,6 +540,26 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     // === Retrieval ===
 
     @GET
+    @Path("/user/{username}/workspaces")
+    @Override
+    public Collection<Topic> getWorkspacesByOwner(@PathParam("username") String username) {
+        try {
+            List<Topic> workspaces = dmx.getTopicsByProperty(OWNER, username);
+            // Consistency check
+            for (Topic workspace : workspaces) {
+                if (!workspace.getTypeUri().equals(WORKSPACE)) {
+                    throw new RuntimeException("Consistency check failed: topic " + workspace.getId() +
+                        " is not a Workspace, but a \"" + workspace.getTypeUri() + "\"");
+                }
+            }
+            //
+            return workspaces;
+        } catch (Exception e) {
+            throw new RuntimeException("Getting workspaces owned by user \"" + username + "\" failed", e);
+        }
+    }
+
+    @GET
     @Path("/creator/{username}/topics")
     @Override
     public Collection<Topic> getTopicsByCreator(@PathParam("username") String username) {
@@ -540,24 +567,10 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     }
 
     @GET
-    @Path("/owner/{username}/topics")
-    @Override
-    public Collection<Topic> getTopicsByOwner(@PathParam("username") String username) {
-        return dmx.getTopicsByProperty(OWNER, username);
-    }
-
-    @GET
     @Path("/creator/{username}/assocs")
     @Override
     public Collection<Assoc> getAssocsByCreator(@PathParam("username") String username) {
         return dmx.getAssocsByProperty(CREATOR, username);
-    }
-
-    @GET
-    @Path("/owner/{username}/assocs")
-    @Override
-    public Collection<Assoc> getAssocsByOwner(@PathParam("username") String username) {
-        return dmx.getAssocsByProperty(OWNER, username);
     }
 
 
@@ -694,8 +707,8 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
                 }
             }
         );
-        // custom workspace assignment
         if (p != null) {
+            // custom workspace assignment
             long workspaceId = p[1].getId();
             assoc.getChildTopics().setRef(WORKSPACE + "#" + WORKSPACE_ASSIGNMENT, workspaceId);
         }
@@ -710,12 +723,30 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
 
     @Override
     public void preUpdateTopic(Topic topic, TopicModel updateModel) {
-        if (topic.getTypeUri().equals(USERNAME)) {
-            SimpleValue newUsername = updateModel.getSimpleValue();
-            String oldUsername = topic.getSimpleValue().toString();
-            if (newUsername != null && !newUsername.toString().equals(oldUsername)) {
-                throw new RuntimeException("A Username can't be changed (tried \"" + oldUsername + "\" -> \"" +
-                    newUsername + "\")");
+        if (topic.getTypeUri().equals(USER_ACCOUNT)) {
+            // Username
+            TopicModel newUsernameTopic = updateModel.getChildTopics().getTopicOrNull(USERNAME);
+            if (newUsernameTopic != null) {
+                String newUsername = newUsernameTopic.getSimpleValue().toString();
+                String username = topic.getChildTopics().getTopic(USERNAME).getSimpleValue().toString();
+                if (!newUsername.equals(username)) {
+                    throw new RuntimeException("A Username can't be changed (tried \"" + username + "\" -> \"" +
+                        newUsername + "\")");
+                }
+            }
+            // Password
+            RelatedTopicModel passwordTopic = updateModel.getChildTopics().getTopicOrNull(PASSWORD);
+            if (passwordTopic != null) {
+                // empty check
+                String password = passwordTopic.getSimpleValue().toString();
+                if (password.equals("")) {
+                    throw new RuntimeException("Password can't be empty");
+                }
+                // workspace assignment
+                long workspaceId = getPrivateWorkspace().getId();
+                String compDefUri = WORKSPACE + "#" + WORKSPACE_ASSIGNMENT;
+                passwordTopic.getChildTopics().setRef(compDefUri, workspaceId);
+                passwordTopic.getRelatingAssoc().getChildTopics().setRef(compDefUri, workspaceId);
             }
         }
     }
@@ -723,14 +754,15 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     @Override
     public void postUpdateTopic(Topic topic, ChangeReport report, TopicModel updateModel) {
         if (topic.getTypeUri().equals(USER_ACCOUNT)) {
-            // encode password
-            RelatedTopic passwordTopic = topic.getChildTopics().getTopic(PASSWORD);
-            String password = passwordTopic.getSimpleValue().toString();
-            passwordTopic.setSimpleValue(encodePassword(password));
-            // reassign workspace
-            long workspaceId = getPrivateWorkspace().getId();
-            ws.assignToWorkspace(passwordTopic, workspaceId);
-            ws.assignToWorkspace(passwordTopic.getRelatingAssoc(), workspaceId);
+            // salt+hash password
+            ChildTopics ct = topic.getChildTopics();
+            RelatedTopic passwordTopic = ct.getTopic(PASSWORD);
+            if (report.getChanges(PASSWORD) != null) {
+                String username = ct.getTopic(USERNAME).getSimpleValue().toString();
+                String password = passwordTopic.getSimpleValue().toString();
+                Credentials cred = new Credentials(username, password);
+                dmx.getPrivilegedAccess().storePasswordHash(cred, passwordTopic.getModel());
+            }
         }
         //
         setModifier(topic);
@@ -739,6 +771,20 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     @Override
     public void postUpdateAssoc(Assoc assoc, ChangeReport report, AssocModel updateModel) {
         setModifier(assoc);
+    }
+
+    @Override
+    public void postDeleteTopic(TopicModel topic) {
+        if (topic.getTypeUri().equals(USERNAME)) {
+            String username = topic.getSimpleValue().toString();
+            Collection<Topic> workspaces = getWorkspacesByOwner(username);
+            String currentUser = getUsername();
+            logger.info("### Transferring ownership of " + workspaces.size() + " workspaces from \"" + username +
+                "\" -> \"" + currentUser + "\"");
+            for (Topic workspace : workspaces) {
+                setWorkspaceOwner(workspace, currentUser);
+            }
+        }
     }
 
     // ---
@@ -772,6 +818,7 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
             " bytes, disk quota: " + diskQuota + " bytes => QUOTA " + (quotaOK ? "OK" : "EXCEEDED"));
         //
         if (!quotaOK) {
+            // FIXME: throw AccessControlException?
             throw new RuntimeException("Disk quota of " + userInfo(username) + " exceeded, diskQuota=" + diskQuota +
                 " bytes, occupiedSpace=" + occupiedSpace + " bytes, fileSize=" + fileSize + " bytes");
         }
@@ -823,11 +870,6 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
         return false;
     }
 
-    // ### TODO: copy in Credentials.java
-    private String encodePassword(String password) {
-        return ENCODED_PASSWORD_PREFIX + JavaUtils.encodeSHA256(password);
-    }
-
     // --- Disk Quota ---
 
     private long getOccupiedSpace(String username) {
@@ -869,7 +911,7 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
             session = request.getSession();
             String cookie = response.getHeader("Set-Cookie");
             response.setHeader("Set-Cookie", cookie + ";SameSite=Strict");
-            logger.info("### Creating " + info(session) + ", response=" + response);
+            logger.fine("### Creating " + info(session) + ", response=" + response);
         }
         return session;
     }
@@ -966,7 +1008,8 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     private void _logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);    // create=false
         String username = username(session);                // save username before removing
-        logger.info("##### Logging out from " + info(session));
+        logger.info("##### Logging out as \"" + username + "\"");
+        logger.fine("##### Detaching username from " + info(session));
         // Note: the session is not invalidated. Just the "username" attribute is removed.
         session.removeAttribute("username");
         dmx.fireEvent(POST_LOGOUT_USER, username);
@@ -1138,18 +1181,7 @@ public class AccessControlPlugin extends PluginActivator implements AccessContro
     }
 
     private boolean inRequestScope() {
-        try {
-            request.getMethod();
-            return true;
-        } catch (IllegalStateException e) {
-            // Note: this happens if a request method is called outside request scope.
-            // This is the case while system startup.
-            return false;
-        } catch (NullPointerException e) {
-            // While system startup request might be null.
-            // Jersey might not have injected the proxy object yet.
-            return false;
-        }
+        return dmx.getPrivilegedAccess().inRequestScope(request);
     }
 
 

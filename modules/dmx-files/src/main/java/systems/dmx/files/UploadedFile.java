@@ -1,5 +1,6 @@
 package systems.dmx.files;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -25,22 +26,16 @@ public class UploadedFile {
     private String name;
     private long size;
     private InputStream in;
-    private DiskQuotaCheck diskQuotaCheck;
 
     // ---------------------------------------------------------------------------------------------------- Constructors
 
-    public UploadedFile(String name, long size, InputStream in, DiskQuotaCheck diskQuotaCheck) {
+    public UploadedFile(String name, long size, InputStream in) {
         this.name = name;
         this.size = size;
         this.in = in;
-        this.diskQuotaCheck = diskQuotaCheck;
     }
 
     // -------------------------------------------------------------------------------------------------- Public Methods
-
-
-
-    // === File Metadata ===
 
     /**
      * Returns the original filename in the client's filesystem, as provided by the browser (or other client software).
@@ -49,6 +44,33 @@ public class UploadedFile {
      */
     public String getName() {
         return name;
+    }
+
+    public long getSize() {
+        return size;
+    }
+
+    /**
+     * Returns an InputStream that can be used to retrieve the contents of the uploaded file.
+     */
+    public InputStream getInputStream() {
+        return in;
+    }
+
+    /**
+     * Transforms the InputStream into a BufferedInputStream and sets a mark. This allows to call reset() later on in
+     * order to read the stream's bytes again. Should be called <i>before</i> you read any bytes from the stream.
+     * <p>
+     * Call {@link #getInputStream} <i>after</i> calling {@link #setBuffered} in order to get the actual
+     * BufferedInputStream.
+     * <p>
+     * Calling reset() without calling {@link #setBuffered} before throws an IOException.
+     */
+    public void setBuffered() {
+        if (!in.markSupported()) {
+            in = new BufferedInputStream(in, (int) size);
+        }
+        in.mark((int) size + 1);
     }
 
 
@@ -84,13 +106,6 @@ public class UploadedFile {
         return fileItem.get();
     }*/
 
-    /**
-     * Returns an InputStream that can be used to retrieve the contents of the uploaded file.
-     */
-    public InputStream getInputStream() {
-        return in;
-    }
-
 
 
     // === Java API ===
@@ -103,12 +118,10 @@ public class UploadedFile {
     // ----------------------------------------------------------------------------------------- Package Private Methods
 
     /**
-     * Performs a disk quota check for the current user, and if it succeeds, writes this uploaded file to disk.
+     * Writes this uploaded file to disk.
      */
     void write(File file) {
         try {
-            diskQuotaCheck.check(size);
-            // TODO: compare with FilesPlugin.createFile()
             OutputStream out = new FileOutputStream(file);
             IOUtils.copy(in, out);
             in.close();

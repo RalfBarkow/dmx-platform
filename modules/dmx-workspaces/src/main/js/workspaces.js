@@ -9,7 +9,8 @@ const state = {
 
   isWritable: undefined,            // true if selected workspace is writable
 
-  workspaceTopics: undefined,       // All workspace topics readable by current user (array of dmx.Topic)
+  workspaceTopics: undefined,       // All workspace topics readable by current user (array of dmx.Topic).
+                                    // Initialzed by fetchWorkspaceTopics()
 
   workspaceCommands: {},            // Registered workspace commands:
                                     //   {
@@ -36,17 +37,6 @@ const actions = {
    */
   selectWorkspace ({dispatch}, id) {
     selectWorkspace(id, dispatch)
-  },
-
-  /**
-   * Dispatched for initial navigation (see router.js), after workspace deletion,
-   * and after logout (see loggedOut() below).
-   *
-   * Preconditions:
-   * - the route is *not* yet set.
-   */
-  selectFirstWorkspace ({dispatch}) {
-    selectFirstWorkspace(dispatch)
   },
 
   /**
@@ -139,6 +129,12 @@ export default {
 
 // Actions helper
 
+/**
+ * Called after workspace deletion and after logout (see loggedOut() below).
+ *
+ * Preconditions:
+ * - the route is *not* yet set.
+ */
 function selectFirstWorkspace (dispatch) {
   selectWorkspace(state.workspaceTopics[0].id, dispatch)
 }
@@ -179,7 +175,7 @@ function isWorkspaceReadable () {
 }
 
 function updateWorkspaceCookie () {
-  // console.log('dmx_workspace_id', state.workspaceId)
+  // console.log('updateWorkspaceCookie', state.workspaceId)
   dmx.utils.setCookie('dmx_workspace_id', state.workspaceId)
 }
 

@@ -213,6 +213,22 @@ public interface ChildTopicsModel extends JSONEnabled, Iterable<String> {
      */
     ChildTopicsModel setRef(String compDefUri, String refTopicUri);
 
+    /**
+     * Puts a by-ID topic reference in a single-valued child.
+     * An existing reference is overwritten.
+     *
+     * @param   assoc   provides a value (simple or composite) for the created relating association.
+     */
+    ChildTopicsModel setRef(String compDefUri, long refTopicId, AssocModel assoc);
+
+    /**
+     * Puts a by-URI topic reference in a single-valued child.
+     * An existing reference is overwritten.
+     *
+     * @param   assoc   provides a value (simple or composite) for the created relating association.
+     */
+    ChildTopicsModel setRef(String compDefUri, String refTopicUri, AssocModel assoc);
+
     // ---
 
     /**
@@ -283,21 +299,29 @@ public interface ChildTopicsModel extends JSONEnabled, Iterable<String> {
      */
     ChildTopicsModel addRef(String compDefUri, String refTopicUri);
 
+    /**
+     * Adds a by-ID topic reference to a multiple-valued child.
+     *
+     * @param   assoc   provides a value (simple or composite) for the created relating association.
+     */
+    ChildTopicsModel addRef(String compDefUri, long refTopicId, AssocModel assoc);
+
+    /**
+     * Adds a by-URI topic reference to a multiple-valued child.
+     *
+     * @param   assoc   provides a value (simple or composite) for the created relating association.
+     */
+    ChildTopicsModel addRef(String compDefUri, String refTopicUri, AssocModel assoc);
+
     // ---
 
-    // FIXME: drop it. Since we can have duplicate multi-values a topic ID is not sufficient, we need the assoc ID.
-    // Add a RelatedTopicModel with an empty topic value instead.
     /**
-     * Adds a by-ID topic deletion reference to a multiple-valued child.
+     * Adds a topic deletion reference to a multiple-valued child. Note: the topic to be deleted is referred to by
+     * association ID. The topic might occur several times in the same multi-value, so topic ID/URI would not be unique.
+     *
+     * @param   assocId     ID of the association that connects the to be deleted topic with the parent.
      */
-    ChildTopicsModel addDeletionRef(String compDefUri, long refTopicId);
-
-    // FIXME: drop it. Since we can have duplicate multi-values a topic URI is not sufficient, we need the assoc ID.
-    // Add a RelatedTopicModel with an empty topic value instead.
-    /**
-     * Adds a by-URI topic deletion reference to a multiple-valued child.
-     */
-    ChildTopicsModel addDeletionRef(String compDefUri, String refTopicUri);
+    ChildTopicsModel addDeletionRef(String compDefUri, long assocId);
 
 
 

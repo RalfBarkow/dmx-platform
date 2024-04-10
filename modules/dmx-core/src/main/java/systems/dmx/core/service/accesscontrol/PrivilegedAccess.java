@@ -4,6 +4,7 @@ import systems.dmx.core.Assoc;
 import systems.dmx.core.DMXObject;
 import systems.dmx.core.RelatedTopic;
 import systems.dmx.core.Topic;
+import systems.dmx.core.model.TopicModel;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
@@ -62,10 +63,19 @@ public interface PrivilegedAccess {
      */
     void changePassword(Credentials cred);
 
+    /**
+     * Creates a salt for the given credential's password, and
+     * 1) stores the salt as a property of the given Password topic
+     * 2) stores the salted password hash as the value of the given Password topic.
+     *
+     * @param   password    plain text
+     */
+    void storePasswordHash(Credentials cred, TopicModel passwordTopic);
+
     // ---
 
     /**
-     * Returns the Username topic that corresponds to a username.
+     * Returns the Username topic that corresponds to a username (case-insensitive).
      *
      * @return  the Username topic, or <code>null</code> if no such Username topic exists.
      */
@@ -132,6 +142,15 @@ public interface PrivilegedAccess {
      * @return  the username, or <code>null</code> if no user is associated with the session.
      */
     String username(HttpSession session);
+
+    /**
+     * Returns true if the running code was triggered from "outside", that is by a HTTP request, or from "inside",
+     * that is while platform startup, in particular when an migration is running.
+     *
+     * @param   request     a request obtained via JAX-RS context injection, actually a proxy object which manages
+     *                      thread-local request values. Must not be null.
+     */
+    boolean inRequestScope(HttpServletRequest request);
 
 
 
@@ -300,7 +319,7 @@ public interface PrivilegedAccess {
      * Returns true if an "Email Address" (dmx.contacts.email_address) topic with the given value exists,
      * false otherwise.
      * <p>
-     * The Email Address search is case-insesitive.
+     * The Email Address search is case-insensitive.
      * <p>
      * Access control is bypassed.
      */

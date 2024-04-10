@@ -7,7 +7,7 @@
     <name>DMX Plugin</name>
     <groupId>systems.dmx</groupId>
     <artifactId>dmx-plugin</artifactId>
-    <version>5.3-SNAPSHOT</version>
+    <version>5.3.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <description>
@@ -15,33 +15,137 @@
           - declares the `dmx-core` dependency as needed by all DMX plugins
           - preconfigures the DMX default bundle activator
           - derives the hot deployment feature
+          - includes JUnit5, Mockito 4.x and AssertJ dependencies for out of the box Java8-compatible unit testing
     </description>
 
     <parent>
         <groupId>systems.dmx</groupId>
         <artifactId>dmx-hot-deploy</artifactId>
-        <version>5.3-SNAPSHOT</version>
+        <version>5.3.5-SNAPSHOT</version>
         <relativePath>../dmx-hot-deploy/pom.xml</relativePath>
     </parent>
+
+    <properties>
+        <assertj.version>3.25.3</assertj.version>
+        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+        <mockito.version>4.11.0</mockito.version>
+        <jacoco-maven-plugin.version>0.8.11</jacoco-maven-plugin.version>
+        <junit-jupiter.version>5.10.2</junit-jupiter.version>
+        <sonar-maven-plugin.version>3.10.0.2594</sonar-maven-plugin.version>
+    </properties>
 
     <dependencies>
         <dependency>
             <groupId>systems.dmx</groupId>
             <artifactId>dmx-core</artifactId>
-            <version>5.3-SNAPSHOT</version>
+            <version>5.3.5-SNAPSHOT</version>
+        </dependency>
+
+        <!-- unit testing framework -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- mocking framework -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-inline</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- assertions -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
+    <profiles>
+        <profile>
+            <id>gitlab-maven-deployment</id>
+            <repositories>
+                <repository>
+                    <id>dmx-platform-gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/13/packages/maven</url>
+                </repository>
+                <repository>
+                    <id>dmx-plugins-gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/groups/17/-/packages/maven</url>
+                </repository>
+            </repositories>
+            <distributionManagement>
+                <repository>
+                    <id>gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
+                </repository>
+                <snapshotRepository>
+                    <id>gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>${jacoco-maven-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <formats>
+                                        <format>HTML</format>
+                                        <format>XML</format>
+                                    </formats>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-            <resource>
-                <directory>src/main/resources-static</directory>
-                <targetPath>web</targetPath>
-            </resource>
-        </resources>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar-maven-plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.felix</groupId>
@@ -51,6 +155,11 @@
                         <Bundle-Activator>systems.dmx.core.osgi.PluginActivator</Bundle-Activator>
                     </instructions>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
             </plugin>
         </plugins>
     </build>

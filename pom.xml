@@ -7,7 +7,7 @@
     <name>DMX</name>
     <groupId>systems.dmx</groupId>
     <artifactId>dmx</artifactId>
-    <version>5.3-SNAPSHOT</version>
+    <version>5.3.5-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <description>DMX is a knowledge building platform</description>
@@ -55,9 +55,19 @@
             <name>Daniel van den Eijkel</name>
             <email>dvde@gmx.net</email>
         </developer>
+        <developer>
+            <id>rsc</id>
+            <name>Robert Schuster</name>
+            <email>robert.schuster.rs01@gmail.com</email>
+        </developer>
+        <developer>
+            <id>gev</id>
+            <name>Gloria Euroza Vazquez</name>
+            <email>gloria.euroza@dmx.berlin</email>
+        </developer>
     </developers>
 
-    <!-- For a description of the config properties see /dmx-distribution/conf/config.properties -->
+    <!-- For a description of the config properties see /modules/dmx-distribution/conf/config.properties -->
     <properties>
         <!-- Webserver -->
         <org.osgi.service.http.port>8080</org.osgi.service.http.port>
@@ -83,6 +93,7 @@
         <!-- User Accounts -->
         <dmx.security.initial_admin_password></dmx.security.initial_admin_password>
         <dmx.security.new_accounts_are_enabled>true</dmx.security.new_accounts_are_enabled>
+        <dmx.security.site_salt></dmx.security.site_salt>
         <!-- LDAP -->
         <dmx.ldap.protocol>LDAP</dmx.ldap.protocol>
         <dmx.ldap.server>127.0.0.1</dmx.ldap.server>
@@ -115,13 +126,14 @@
         </felix.fileinstall.dir>
 
         <!-- Host -->
-        <dmx.host.url>http://localhost:${org.osgi.service.http.port}/</dmx.host.url>
+        <dmx.host.url>http://localhost:${org.osgi.service.http.port}</dmx.host.url>
 
         <!-- Webservice -->
         <dmx.webservice.path>/</dmx.webservice.path>
 
         <!-- Database -->
         <dmx.database.path>${project.basedir}/dmx-db</dmx.database.path>
+        <dmx.database.keep_tx_log>2 days</dmx.database.keep_tx_log>
 
         <!-- Logging -->
         <java.util.logging.config.file>
@@ -134,6 +146,9 @@
         <!-- Encoding -->
         <file.encoding>UTF-8</file.encoding>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Time Zone -->
+        <!-- user.timezone>CET</user.timezone -->
 
         <!-- OSGi Container -->
         <org.osgi.framework.bootdelegation>javax.xml.*,org.xml.*,org.w3c.dom</org.osgi.framework.bootdelegation>
@@ -343,6 +358,26 @@
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+
+        <profile>
+            <id>gitlab-maven-deployment</id>
+            <repositories>
+                <repository>
+                    <id>gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
+                </repository>
+            </repositories>
+            <distributionManagement>
+                <repository>
+                    <id>gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
+                </repository>
+                <snapshotRepository>
+                    <id>gitlab-maven</id>
+                    <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
+                </snapshotRepository>
+            </distributionManagement>
         </profile>
 
         <profile>

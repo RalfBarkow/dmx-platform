@@ -5,8 +5,8 @@
     <!-- Type URI -->
     <div class="field">
       <div class="field-label">Type URI</div>
-      <div v-if="infoMode">{{object.uri}}</div>
-      <el-input v-else v-model="object.uri"></el-input><!-- eslint-disable-line vue/no-mutating-props -->
+      <div v-if="infoMode">{{type.uri}}</div>
+      <el-input v-else v-model="type.uri"></el-input><!-- eslint-disable-line vue/no-mutating-props -->
     </div>
     <!-- Data Type -->
     <div class="field">
@@ -15,7 +15,8 @@
       <dmx-data-type-select v-else :type="type"></dmx-data-type-select>
     </div>
     <!-- Comp Defs -->
-    <dmx-comp-def-list :comp-defs="compDefs" :mode="mode" @comp-def-click="click"></dmx-comp-def-list>
+    <dmx-comp-def-list v-if="type.isComposite" :comp-defs="compDefs" :mode="mode" @comp-def-click="click">
+    </dmx-comp-def-list>
   </div>
 </template>
 
@@ -24,10 +25,6 @@ import dmx from 'dmx-api'
 
 export default {
 
-  created () {
-    // console.log('dmx-type-renderer created', this.type)
-  },
-
   mixins: [
     require('./mixins/info-mode').default,
     require('./mixins/context').default
@@ -35,7 +32,7 @@ export default {
 
   props: {
     object: {   // the type to render
-      type: dmx.Type,
+      type: dmx.DMXType,
       required: true
     }
   },

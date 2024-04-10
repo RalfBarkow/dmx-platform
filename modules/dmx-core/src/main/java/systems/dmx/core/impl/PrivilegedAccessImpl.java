@@ -14,7 +14,9 @@ import systems.dmx.core.service.accesscontrol.Credentials;
 import systems.dmx.core.service.accesscontrol.Operation;
 import systems.dmx.core.service.accesscontrol.PrivilegedAccess;
 import systems.dmx.core.service.accesscontrol.SharingMode;
+import systems.dmx.core.storage.spi.DMXTransaction;
 import systems.dmx.core.util.ContextTracker;
+import systems.dmx.core.util.JavaUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
@@ -29,6 +31,8 @@ import java.util.logging.Logger;
 class PrivilegedAccessImpl implements PrivilegedAccess {
 
     // ------------------------------------------------------------------------------------------------------- Constants
+
+    private static final String SITE_SALT = System.getProperty("dmx.security.site_salt", "");
 
     // ### TODO: copies in Constants.java of various plugins
 
@@ -51,6 +55,7 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     private static final String CONFIGURABLE         = "dmx.config.configurable";
 
     // Property URIs
+    private static final String PROP_SALT            = "dmx.accesscontrol.salt";            // for Password topics
     private static final String PROP_CREATOR         = "dmx.accesscontrol.creator";
     private static final String PROP_OWNER           = "dmx.accesscontrol.owner";
     private static final String PROP_WORKSPACE_ID    = "dmx.workspaces.workspace_id";
@@ -176,7 +181,7 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
             if (usernameTopic == null) {
                 return null;
             }
-            if (!matches(usernameTopic, cred.password)) {
+            if (!checkPassword(usernameTopic, cred.password)) {
                 return null;
             }
             return usernameTopic.instantiate();
@@ -189,12 +194,21 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     @Override
     public void changePassword(Credentials cred) {
         try {
-            logger.info("##### Changing password for user \"" + cred.username + "\"");
-            TopicModelImpl password = getPasswordTopic(_getUsernameTopicOrThrow(cred.username));
-            password._updateSimpleValue(new SimpleValue(cred.password));
+            logger.info("##### Changing password of user \"" + cred.username + "\"");
+            TopicModelImpl passwordTopic = getPasswordTopic(_getUsernameTopicOrThrow(cred.username));
+            storePasswordHash(cred, passwordTopic);
         } catch (Exception e) {
-            throw new RuntimeException("Changing password for user \"" + cred.username + "\" failed", e);
+            throw new RuntimeException("Changing password of user \"" + cred.username + "\" failed", e);
         }
+    }
+
+    @Override
+    public void storePasswordHash(Credentials cred, TopicModel passwordTopic) {
+        logger.info("### Salting password of user \"" + cred.username + "\"");
+        String salt = JavaUtils.random256();
+        String hash = JavaUtils.encodeSHA256(SITE_SALT + salt + cred.password);
+        ((TopicModelImpl) passwordTopic).storeProperty(PROP_SALT, salt, false);     // addToIndex=false
+        ((TopicModelImpl) passwordTopic).updateSimpleValue(new SimpleValue(hash));
     }
 
     // ---
@@ -267,17 +281,14 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
 
     @Override
     public String getUsername(HttpServletRequest request) {
-        try {
-            HttpSession session = request.getSession(false);    // create=false
-            if (session == null) {
-                return null;
-            }
-            return username(session);
-        } catch (IllegalStateException e) {
-            // Note: this happens if request is a proxy object (injected by Jersey) and a request method is called
-            // outside request scope. This is the case while system startup.
-            return null;    // user is unknown
+        if (!inRequestScope(request)) {
+            return null;
         }
+        HttpSession session = request.getSession(false);    // create=false
+        if (session == null) {
+            return null;
+        }
+        return username(session);
     }
 
     @Override
@@ -292,6 +303,23 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     @Override
     public String username(HttpSession session) {
         return (String) session.getAttribute("username");
+    }
+
+    @Override
+    public boolean inRequestScope(HttpServletRequest request) {
+        try {
+            request.getMethod();
+            return true;
+        } catch (IllegalStateException e) {
+            // Note: this happens if request is a proxy object (injected by Jersey) and any method is
+            // called on it outside request scope, that is when there is no thread-local request.
+            // This is the case while system startup.
+            return false;
+        } catch (NullPointerException e) {
+            // While system startup request might be null.
+            // Jersey might not have injected the proxy object yet.
+            return false;
+        }
     }
 
 
@@ -466,16 +494,38 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     // ------------------------------------------------------------------------------------------------- Private Methods
 
     /**
-     * Prerequisite: usernameTopic is not <code>null</code>.
+     * Password check according to DMX's own password management.
      *
-     * @param   password    The SHA256 encoded password.
+     * Checks if given username and password do match.
+     *
+     * @param   usernameTopic   not <code>null</code>.
+     * @param   password        password provided by user, plain text
+     *
+     * @return  true if username and password match, false otherwise.
      */
-    private boolean matches(TopicModel usernameTopic, String password) {
-        String _password = getPasswordTopic(usernameTopic).getSimpleValue().toString();     // SHA256 encoded
-        if (!_password.startsWith(ENCODED_PASSWORD_PREFIX)) {
-            throw new RuntimeException("Stored password is not SHA256 encoded");
+    private boolean checkPassword(TopicModel usernameTopic, String password) {
+        TopicModelImpl passwordTopic = getPasswordTopic(usernameTopic);
+        String storedHash = passwordTopic.getSimpleValue().toString();          // SHA256 hash
+        String username = usernameTopic.getSimpleValue().toString();
+        Credentials cred = new Credentials(username, password);
+        String compareHash;
+        boolean isMatch;
+        if (passwordTopic.hasProperty(PROP_SALT)) {
+            String salt = (String) passwordTopic.getProperty(PROP_SALT);
+            compareHash = JavaUtils.encodeSHA256(SITE_SALT + salt + password);  // canonic: site salt already applied
+            isMatch = storedHash.equals(compareHash);
+            if (isMatch) {
+                return true;
+            }
+            compareHash = JavaUtils.encodeSHA256(salt + password);              // site salt not yet applied
+        } else {
+            compareHash = encodePassword(password);                             // legacy account, not salted
         }
-        return _password.equals(password);
+        isMatch = storedHash.equals(compareHash);
+        if (isMatch) {
+            _storePasswordHash(cred, passwordTopic);
+        }
+        return isMatch;
     }
 
     /**
@@ -513,6 +563,23 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
                 "\", userAccount=" + userAccount);
         }
         return password;
+    }
+
+    private void _storePasswordHash(Credentials cred, TopicModelImpl passwordTopic) {
+        DMXTransaction tx = al.db.beginTx();
+        try {
+            storePasswordHash(cred, passwordTopic);
+            tx.success();
+        } catch (Exception e) {
+            throw new RuntimeException("Salting a password failed", e);
+        } finally {
+            tx.finish();
+        }
+    }
+
+    // used for legacy accounts
+    private String encodePassword(String password) {
+        return ENCODED_PASSWORD_PREFIX + JavaUtils.encodeSHA256(password);
     }
 
     // ---
@@ -604,7 +671,7 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     private TopicModelImpl _getUsernameTopic(String username) {
         // Note: username topics are not readable by <anonymous>.
         // So direct storage access is required here.
-        return al.sd.fetchTopic(USERNAME, username.toLowerCase());
+        return al.sd.queryTopicFulltext(USERNAME, username);        // username search is case-insensitive
     }
 
     private TopicModelImpl _getUsernameTopicOrThrow(String username) {
@@ -618,19 +685,15 @@ class PrivilegedAccessImpl implements PrivilegedAccess {
     // ---
 
     private String _getUsername(String emailAddress) {
-        String username = null;
-        // perform case-insesitive email address search
-        for (TopicModelImpl emailAddressTopic : al.db.queryTopicsFulltext(EMAIL_ADDRESS, emailAddress)) {
+        // email address search is case-insensitive
+        TopicModelImpl emailAddressTopic = al.sd.queryTopicFulltext(EMAIL_ADDRESS, emailAddress);
+        if (emailAddressTopic != null) {
             TopicModel usernameTopic = emailAddressTopic.getRelatedTopic(USER_MAILBOX, CHILD, PARENT, USERNAME);
             if (usernameTopic != null) {
-                if (username != null) {
-                    throw new RuntimeException("Ambiguity: the Username assignment for email address \"" +
-                        emailAddress + "\" is not unique");
-                }
-                username = usernameTopic.getSimpleValue().toString();
+                return usernameTopic.getSimpleValue().toString();
             }
         }
-        return username;
+        return null;
     }
 
     private String _getEmailAddress(String username) {

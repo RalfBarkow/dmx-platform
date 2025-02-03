@@ -23,6 +23,7 @@ import java.net.URLEncoder;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
 
@@ -54,36 +55,51 @@ public class JavaUtils {
     // === Files ===
 
     private static FileNameMap fileTypeMap = URLConnection.getFileNameMap();
+    private static Map<String, String> fileTypeMap2 = createFileTypeMap();
 
+    // fallback list when not provided by JDK
+    private static Map<String, String> createFileTypeMap() {
+        Map<String, String> map = new HashMap();
+        map.put("js", "text/javascript");
+        map.put("mjs", "text/javascript");
+        map.put("css", "text/css");
+        map.put("mp3", "audio/mpeg");
+        map.put("m4a", "audio/mp4");
+        map.put("mp4", "video/mp4");
+        map.put("m4v", "video/mp4");
+        map.put("avi", "video/avi");
+        map.put("wmv", "video/x-ms-wmv");
+        map.put("flv", "video/x-flv");
+        map.put("svg", "image/svg+xml");
+        map.put("woff", "font/woff");
+        map.put("woff2", "font/woff2");
+        map.put("json", "application/json");
+        map.put("epub", "application/epub+zip");
+        map.put("doc", "application/msword");
+        map.put("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        map.put("xls", "application/vnd.ms-excel");
+        map.put("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        map.put("ppt", "application/vnd.ms-powerpoint");
+        map.put("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+        map.put("odt", "application/vnd.oasis.opendocument.text");
+        map.put("ods", "application/vnd.oasis.opendocument.spreadsheet");
+        map.put("odp", "application/vnd.oasis.opendocument.presentation");
+        return map;
+    }
+
+    // TODO: rename to getMediaType()/getContentType()
     public static String getFileType(String fileName) {
         String extension = getExtension(fileName);
         if (!extension.equals("avi")) {
-            // Note: for .avi Java's file type map returns strange media type "application/x-troff-msvideo".
-            // See lib/content-types.properties under java home.
+            // Note: for .avi the Java 8 file type map returns strange media type "application/x-troff-msvideo".
+            // See jre/lib/content-types.properties under java home.
             String fileType = fileTypeMap.getContentTypeFor(fileName);
             if (fileType != null) {
                 return fileType;
             }
         }
         // fallback
-        if (extension.equals("json")) {
-            return "application/json";
-        } else if (extension.equals("mp3")) {
-            return "audio/mpeg";
-        } else if (extension.equals("mp4")) {
-            return "video/mp4";
-        } else if (extension.equals("avi")) {
-            return "video/avi";
-        } else if (extension.equals("wmv")) {
-            return "video/x-ms-wmv";
-        } else if (extension.equals("flv")) {
-            return "video/x-flv";
-        } else if (extension.equals("svg")) {
-            return "image/svg+xml";
-        }
-        // TODO: use a system property instead a hardcoded list
-        //
-        return null;
+        return fileTypeMap2.get(extension);
     }
 
     public static String getFilename(String path) {

@@ -29,7 +29,9 @@ module.exports = (env = {}) => {
         {
           test: /\.js$/,
           loader: 'babel-loader',
-          exclude: /node_modules/
+          // Note: dmx-cytoscape-renderer makes use of "?." (JS Optional Chaining operator). quill makes use of "static"
+          // class fields. These must go through babel. x(?!y) is Negative Lookahead Assertion regex operator.
+          exclude: /node_modules\/(?!(dmx-cytoscape-renderer|quill))/
         },
         {
           test: /\.css$/,
@@ -40,7 +42,7 @@ module.exports = (env = {}) => {
           loader: 'file-loader',
           options: {
             esModule: false   // Note: since file-loader 5.0 "esModule" is true by default.
-          }                   // Does not work with <img src"..."> element in vue template.
+          }                   // Does not work with <img src="..."> element in vue template.
         }
       ]
     },

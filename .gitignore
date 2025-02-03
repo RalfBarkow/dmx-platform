@@ -1,5 +1,5 @@
 /dmx-db/
-/dmx-db-*/
+/dmx-*-db/
 /dmx-files/
 /runner/
 /bundle-deploy/
@@ -11,6 +11,7 @@ target/
 node_modules/
 
 *~
+.idea
 .project
 .classpath
 .settings

@@ -7,7 +7,7 @@
     <name>DMX</name>
     <groupId>systems.dmx</groupId>
     <artifactId>dmx</artifactId>
-    <version>5.3.5-SNAPSHOT</version>
+    <version>5.3.5</version>
     <packaging>pom</packaging>
 
     <description>DMX is a knowledge building platform</description>
@@ -91,20 +91,10 @@
         <dmx.security.subnet_filter>127.0.0.1/32</dmx.security.subnet_filter>
 
         <!-- User Accounts -->
+        <dmx.accountmanagement.manager>DMX</dmx.accountmanagement.manager>
         <dmx.security.initial_admin_password></dmx.security.initial_admin_password>
         <dmx.security.new_accounts_are_enabled>true</dmx.security.new_accounts_are_enabled>
         <dmx.security.site_salt></dmx.security.site_salt>
-        <!-- LDAP -->
-        <dmx.ldap.protocol>LDAP</dmx.ldap.protocol>
-        <dmx.ldap.server>127.0.0.1</dmx.ldap.server>
-        <dmx.ldap.port>389</dmx.ldap.port>
-        <dmx.ldap.manager></dmx.ldap.manager>
-        <dmx.ldap.password></dmx.ldap.password>
-        <dmx.ldap.user_base></dmx.ldap.user_base>
-        <dmx.ldap.user_attribute></dmx.ldap.user_attribute>
-        <dmx.ldap.user_filter></dmx.ldap.user_filter>
-        <dmx.ldap.user_member_group></dmx.ldap.user_member_group>
-        <dmx.ldap.logging>INFO</dmx.ldap.logging>
 
         <!-- Workspace Sharing Modes -->
         <dmx.workspaces.private.enabled>true</dmx.workspaces.private.enabled>
@@ -331,6 +321,7 @@
                 <module>modules/dmx-topicmaps</module>
                 <module>modules/dmx-files</module>
                 <module>modules/dmx-accesscontrol</module>
+                <module>modules/dmx-account-management</module>
                 <module>modules/dmx-facets</module>
                 <module>modules/dmx-timestamps</module>
                 <module>modules/dmx-caching</module>
@@ -405,6 +396,7 @@
                 <module>modules/dmx-topicmaps</module>
                 <module>modules/dmx-files</module>
                 <module>modules/dmx-accesscontrol</module>
+                <module>modules/dmx-account-management</module>
                 <module>modules/dmx-facets</module>
                 <module>modules/dmx-timestamps</module>
                 <module>modules/dmx-caching</module>
@@ -430,7 +422,7 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.7</version>
+                        <version>1.7.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
@@ -470,7 +462,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.5</version>
+                        <version>3.2.7</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>

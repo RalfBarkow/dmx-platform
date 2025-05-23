@@ -1,15 +1,14 @@
 <template>
-  <el-dialog title="About DMX" custom-class="dmx-about-box" :visible="visible" :modal="false" v-draggable
-      @close="close">
+  <el-dialog title="About DMX" class="dmx-about-box" :model-value="visible" :modal="false" @close="close">
     <img src="../dmx-logo.svg">
     <div>
       <div class="field">
         <div class="field-label">Version</div>
-        5.3.5-SNAPSHOT
+        5.4-SNAPSHOT
       </div>
       <div class="field">
         <div class="field-label">Released</div>
-        Apr 7, 2024
+        Mar 25, 2025
       </div>
       <div class="field">
         <div class="field-label">License</div>
@@ -19,7 +18,7 @@
       </div>
       <div class="field">
         <div class="field-label">Copyright</div>
-        2024&nbsp;&nbsp;<el-link href="https://dmx.systems" type="primary" :underline="false" target="dmx">
+        2025&nbsp;&nbsp;<el-link href="https://dmx.systems" type="primary" :underline="false" target="dmx">
           DMX Systems
         </el-link>
       </div>
@@ -47,7 +46,6 @@ export default {
 <style>
 .dmx-about-box .el-dialog__body {
   display: flex;
-  padding: 20px !important;   /* Element UI default is 30px 20px (was overrideen in App.vue) */
 }
 
 .dmx-about-box img {

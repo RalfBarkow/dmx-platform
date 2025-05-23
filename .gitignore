@@ -1,9 +1,11 @@
-/dmx-db/
-/dmx-db-*/
-/dmx-files/
-/runner/
+/bin/
+/bundle/
+/bundle-cache/
 /bundle-deploy/
 /bundle-disabled/
+/dmx-db/
+/dmx-*-db/
+/dmx-files/
 /modules-external/
 /modules-nodejs/
 
@@ -11,6 +13,7 @@ target/
 node_modules/
 
 *~
+.idea
 .project
 .classpath
 .settings

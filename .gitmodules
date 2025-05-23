@@ -1,0 +1,3 @@
+[submodule "dmx-zettelkasten.git"]
+	path = ./modules-external/dmx-zettelkasten
+	url = git@github.com:RalfBarkow/dmx-zettelkasten.git

@@ -31,7 +31,7 @@ module.exports = (env = {}) => {
           loader: 'babel-loader',
           // Note: dmx-cytoscape-renderer makes use of "?." (JS Optional Chaining operator). quill makes use of "static"
           // class fields. These must go through babel. x(?!y) is Negative Lookahead Assertion regex operator.
-          exclude: /node_modules\/(?!(dmx-cytoscape-renderer|quill))/
+          exclude: /node_modules\/(?!(dmx-cytoscape-renderer|quill|wiki-client))/
         },
         {
           test: /\.css$/,

@@ -32,6 +32,7 @@ export default extraElementUI => {
   //
   // while development add your plugins here
   initPlugin(require('modules-external/dmx-zettelkasten/src/main/js/plugin.js').default)
+  initPlugin(require('modules-external/dmx-fedwiki/src/main/js/plugin.js').default)
   //
   let p     // a promise resolved once the assets of all installed plugins are registered
   if (DEV) {

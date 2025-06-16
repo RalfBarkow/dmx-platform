@@ -1,7 +1,7 @@
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const {VueLoaderPlugin} = require('vue-loader')
-const {DefinePlugin} = require('webpack')
+const {DefinePlugin, ProvidePlugin} = require('webpack')
 const path = require('path')
 
 module.exports = (env = {}) => {
@@ -55,6 +55,11 @@ module.exports = (env = {}) => {
         filename: env.dev ? '[name].css' : '[contenthash].[name].css'
       }),
       new VueLoaderPlugin(),
+      // Automatically load jQuery when $ or jQuery identifier is used
+            new ProvidePlugin({
+              $: 'jquery',
+              jQuery: 'jquery'
+            }),
       new DefinePlugin({
         DEV: env.dev
       })

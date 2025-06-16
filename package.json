@@ -25,6 +25,8 @@
     "dmx-topic-list": "2.x",
     "dmx-topicmap-panel": "3.x",
     "element-ui": "2.13.2",
+    "jquery": "^3.7.1",
+    "jquery-ui-dist": "^1.13.3",
     "vue": "2.6.11",
     "vue-element-dialog-draggable": "1.0.3",
     "vue-font-awesome-search": "1.1.1",

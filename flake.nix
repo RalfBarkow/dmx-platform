@@ -101,6 +101,8 @@
           shellHook = ''
             export JAVA_HOME="${jdk}"
             export PATH="$PATH:${jdk}/bin"
+            # Webpack + Node>=17 (OpenSSL 3) workaround for dev & build
++           export NODE_OPTIONS="--openssl-legacy-provider"
             echo
             echo "dmx-zettelkasten devshell ready."
             echo "Helper commands:"
@@ -112,7 +114,7 @@
             echo "  plugin-build        - build this plugin jar (deploys to bundle-deploy)"
             echo
             echo "Tip: export DMX_DIR=/path/to/dmx-platform if it's not ../dmx-platform"
-            echop
+            echo
           '';
 
           buildInputs = [ ];

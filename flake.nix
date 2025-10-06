@@ -236,18 +236,36 @@
         cmd_plugin_watch = writeCmd "plugin-watch" ''
           PLUGIN="''${1:-}"
           shift || true
+          
+          # Auto-detect plugin if inside plugin directory
           if [ -z "''${PLUGIN}" ]; then
             case "''${PWD}" in
               */modules-external/dmx-fedwiki*)       PLUGIN="fedwiki" ;;
               */modules-external/dmx-zettelkasten*)  PLUGIN="zettelkasten" ;;
-              *) echo "Usage: plugin-watch [fedwiki|zettelkasten] [--jdk 8|11]"; exit 1 ;;
+              *) 
+                echo "Usage: plugin-watch [fedwiki|zettelkasten] [--jdk 8|11]"
+                echo "Or run from inside the plugin directory"
+                exit 1 
+              ;;
             esac
           fi
-          echo "Watching ''${PLUGIN} sources -> rebuild & hot-deploy on changes ..."
+
+          # Determine plugin directory
+          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          case "''${PLUGIN}" in
+            fedwiki)      PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-fedwiki" ;;
+            zettelkasten) PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-zettelkasten" ;;
+            *) echo "Unknown plugin: ''${PLUGIN}"; exit 1 ;;
+          esac
+
+          echo "Watching ''${PLUGIN} sources in ''${PLUG_DIR} -> rebuild & hot-deploy on changes ..."
+          
+          # Change to plugin directory and run watchexec there
+          cd "''${PLUG_DIR}"
           ${pkgs.watchexec}/bin/watchexec \
             -w src/main/java -w src/main/resources -w src/main/js \
             --shell=none --restart --clear \
-            "plugin-build ''${PLUGIN} $*"
+            -- plugin-build "''${PLUGIN}" "$@"
         '';
 
         cmd_run_backend_j11 = writeCmd "dmx-run-backend-j11" ''

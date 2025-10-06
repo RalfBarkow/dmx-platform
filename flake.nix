@@ -14,7 +14,10 @@
     devShells = forAllSystems (pkgs:
       let
         nodejs    = pkgs.nodejs_18;   # change to nodejs_20 if DMX supports it
-        jdk       = pkgs.jdk8;        # DMX template asks for Java 8
+        jdk8      = pkgs.jdk8;        # DMX template asks for Java 8
+        jdk11     = pkgs.jdk11;
+        # default JDK for shell (can stay 8)
+        defaultJdk = jdk8;
         maven     = pkgs.maven;
         sed       = pkgs.gnused;      # ensure GNU sed (for -i)
         git       = pkgs.git;
@@ -133,22 +136,149 @@
         '';
 
         cmd_plugin_build = writeCmd "plugin-build" ''
+          usage() { echo "Usage: plugin-build [fedwiki|zettelkasten] [--jdk 8|11] (or run inside that plugin dir)"; exit 1; }
+
+          # find DMX platform root (works when called from inside modules-external/* too)
+          find_dmx_root() {
+            local d="$PWD"
+            while [ "$d" != "/" ]; do
+              if [ -d "$d/bundle-deploy" ] && [ -d "$d/modules" ]; then echo "$d"; return 0; fi
+              if [ -f "$d/pom.xml" ] && grep -q '<artifactId>dmx</artifactId>' "$d/pom.xml"; then echo "$d"; return 0; fi
+              d="$(dirname "$d")"
+            done
+            # fallback to sibling pattern
+            echo "$(cd "$(git rev-parse --show-toplevel)/.."; pwd)/dmx-platform"
+          }
+
+          TARGET=""
+          JAVA_VER="''${DMX_JAVA:-11}"
+
+          # robust arg parsing: --jdk=8, --jdk 8, 8, 11, jdk8, jdk11
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              fedwiki|zettelkasten) TARGET="$1"; shift ;;
+              --jdk=*)              JAVA_VER="''${1#--jdk=}"; shift ;;
+              --jdk)                shift; [ $# -gt 0 ] || { echo "ERROR: --jdk needs a value (8 or 11)"; exit 1; }; JAVA_VER="$1"; shift ;;
+              8|11)                 JAVA_VER="$1"; shift ;;
+              jdk8)                 JAVA_VER=8; shift ;;
+              jdk11)                JAVA_VER=11; shift ;;
+              -h|--help)            usage ;;
+              *) echo "Unknown arg: $1"; usage ;;
+            esac
+          done
+
+          # infer target when run inside a plugin dir
+          if [ -z "''${TARGET}" ]; then
+            if [ -f pom.xml ] && grep -q '<artifactId>dmx-fedwiki</artifactId>' pom.xml; then
+              TARGET="fedwiki"
+            elif [ -f pom.xml ] && grep -q '<artifactId>dmx-zettelkasten</artifactId>' pom.xml; then
+              TARGET="zettelkasten"
+            else
+              usage
+            fi
+          fi
+
           REPO_ROOT="$(git rev-parse --show-toplevel)"
-          cd "$REPO_ROOT"
-          echo "Building plugin (mvn clean package) ..."
-          mvn clean package
+
+          case "''${TARGET}" in
+            fedwiki)
+              if [ -f pom.xml ] && grep -q '<artifactId>dmx-fedwiki</artifactId>' pom.xml; then
+                PLUG_DIR="$PWD"
+              else
+                PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-fedwiki"
+              fi
+              ;;
+            zettelkasten)
+              if [ -f pom.xml ] && grep -q '<artifactId>dmx-zettelkasten</artifactId>' pom.xml; then
+                PLUG_DIR="$PWD"
+              else
+                PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-zettelkasten"
+              fi
+              ;;
+            *) usage ;;
+          esac
+
+          cd "''${PLUG_DIR}"
+
+          # choose JDK
+          if [ "''${JAVA_VER}" = "8" ]; then
+            export JAVA_HOME="${jdk8}"
+            export PATH="''${JAVA_HOME}/bin:''${PATH}"
+            MVN_PROFILE="-P java8"
+            echo ">> Using JDK 8 for dmx-''${TARGET}"
+          elif [ "''${JAVA_VER}" = "11" ]; then
+            export JAVA_HOME="${jdk11}"
+            export PATH="''${JAVA_HOME}/bin:''${PATH}"
+            MVN_PROFILE="-P java11"
+            echo ">> Using JDK 11 for dmx-''${TARGET}"
+          else
+            echo "ERROR: Invalid JDK version ''${JAVA_VER}'. Use 8 or 11."
+            exit 1
+          fi
+
+          echo "Building dmx-''${TARGET} (mvn -DskipTests package ''${MVN_PROFILE}) ..."
+          mvn -DskipTests package ''${MVN_PROFILE}
+
+          AID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.artifactId)"
+          VER="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          JAR="target/''${AID}-''${VER}.jar"
+          [ -f "''${JAR}" ] || { echo "ERROR: built jar not found at ''${JAR}" >&2; exit 2; }
+
+          DMX_DIR="''${DMX_DIR:-$(find_dmx_root)}"
+          DEST="''${DMX_DIR}/bundle-deploy"
+          mkdir -p "''${DEST}"
+
+          echo "Deploying ''${JAR} -> ''${DEST} ..."
+          cp -v "''${JAR}" "''${DEST}/"
+          echo "Done. If DMX is running, FileInstall should hot-reload the bundle."
         '';
+
+        cmd_plugin_watch = writeCmd "plugin-watch" ''
+          PLUGIN="''${1:-}"
+          shift || true
+          if [ -z "''${PLUGIN}" ]; then
+            case "''${PWD}" in
+              */modules-external/dmx-fedwiki*)       PLUGIN="fedwiki" ;;
+              */modules-external/dmx-zettelkasten*)  PLUGIN="zettelkasten" ;;
+              *) echo "Usage: plugin-watch [fedwiki|zettelkasten] [--jdk 8|11]"; exit 1 ;;
+            esac
+          fi
+          echo "Watching ''${PLUGIN} sources -> rebuild & hot-deploy on changes ..."
+          ${pkgs.watchexec}/bin/watchexec \
+            -w src/main/java -w src/main/resources -w src/main/js \
+            --shell=none --restart --clear \
+            "plugin-build ''${PLUGIN} $*"
+        '';
+
+        cmd_run_backend_j11 = writeCmd "dmx-run-backend-j11" ''
+          ${dmxDirResolve}
+          cd "$DMX_DIR"
+          echo "Starting DMX backend on JDK 11 ..."
+          export JAVA_HOME="${jdk11}"
+          export PATH="${jdk11}/bin:$PATH"
+          mvn pax:run
+        '';
+
+        cmd_build_j11 = writeCmd "dmx-build-j11" ''
+          ${dmxDirResolve}
+          cd "$DMX_DIR"
+          echo "Building DMX platform with JDK 11 (still targeting whatever the POM sets) ..."
+          export JAVA_HOME="${jdk11}"
+          export PATH="${jdk11}/bin:$PATH"
+          mvn -T 1C clean install -P all -DskipTests
+        '';
+
       in
       {
         default = pkgs.mkShell {
           packages = [
-            jdk maven nodejs git curl sed lsof coreutils bash
+            defaultJdk maven nodejs git curl sed lsof coreutils bash
           ];
 
           # Many JDK packages export JAVA_HOME automatically; keep it explicit:
           shellHook = ''
-            export JAVA_HOME="${jdk}"
-            export PATH="$PATH:${jdk}/bin"
+            export JAVA_HOME="${defaultJdk}"
+            export PATH="$PATH:${defaultJdk}/bin"
             # Webpack + Node>=17 (OpenSSL 3) workaround for dev & build
             export NODE_OPTIONS="--openssl-legacy-provider"
             echo
@@ -161,6 +291,9 @@
             echo "  dmx-run-backend-port [P]  - backend on a custom port (default 8081)"
             echo "  dmx-run-frontend          - start Webpack Dev Server (npm run dev)"
             echo "  plugin-build              - build this plugin jar (deploys to bundle-deploy)"
+            echo "  plugin-watch              - watch src/* and auto-build + hot-deploy"
+            echo "  dmx-run-backend-j11       - run backend on Java 11"
+            echo "  dmx-build-j11             - build platform using Java 11 toolchain"
             echo "  dmx-free-8080 [PORT]      - free a TCP port (SIGTERM then SIGKILL)"
             echo "  dmx-reset-db              - backup & reset dmx-db"
             echo
@@ -179,8 +312,11 @@
             cmd_run_backend_port
             cmd_run_frontend
             cmd_plugin_build
+            cmd_plugin_watch
             cmd_free_8080
             cmd_reset_db
+            cmd_run_backend_j11
+            cmd_build_j11
           ];
         };
       });

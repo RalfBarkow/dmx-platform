@@ -13,7 +13,7 @@
   {
     devShells = forAllSystems (pkgs:
       let
-        nodejs    = pkgs.nodejs_18;   # change to nodejs_20 if DMX supports it
+        nodejs    = pkgs.nodejs_20;   # change to nodejs_20 if DMX supports it
         jdk8      = pkgs.jdk8;        # DMX template asks for Java 8
         jdk11     = pkgs.jdk11;
         # default JDK for shell (can stay 8)
@@ -236,16 +236,16 @@
         cmd_plugin_watch = writeCmd "plugin-watch" ''
           PLUGIN="''${1:-}"
           shift || true
-          
+
           # Auto-detect plugin if inside plugin directory
           if [ -z "''${PLUGIN}" ]; then
             case "''${PWD}" in
               */modules-external/dmx-fedwiki*)       PLUGIN="fedwiki" ;;
               */modules-external/dmx-zettelkasten*)  PLUGIN="zettelkasten" ;;
-              *) 
+              *)
                 echo "Usage: plugin-watch [fedwiki|zettelkasten] [--jdk 8|11]"
                 echo "Or run from inside the plugin directory"
-                exit 1 
+                exit 1
               ;;
             esac
           fi
@@ -259,7 +259,7 @@
           esac
 
           echo "Watching ''${PLUGIN} sources in ''${PLUG_DIR} -> rebuild & hot-deploy on changes ..."
-          
+
           # Change to plugin directory and run watchexec there
           cd "''${PLUG_DIR}"
           ${pkgs.watchexec}/bin/watchexec \

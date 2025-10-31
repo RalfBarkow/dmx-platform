@@ -4,3 +4,7 @@
 [submodule "modules-external/dmx-fedwiki"]
 	path = modules-external/dmx-fedwiki
 	url = https://github.com/RalfBarkow/dmx-fedwiki
+[submodule "modules-external/dmx-dita"]
+	path = modules-external/dmx-dita
+	url = https://github.com/RalfBarkow/dmx-dita.git
+	branch = master

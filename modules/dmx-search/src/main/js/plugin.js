@@ -36,6 +36,44 @@ export default ({store}) => {
     ]
   }
 
+  function getTextType(store) {
+    return (
+      store.state.model.getTopicTypeByUri('dmx.core.note') ||
+      store.state.model.getTopicTypeByUri('dmx.core.text') ||
+      null
+    )
+  }
+
+  function makeOpLog(action, context) {
+    const lines = []
+    const now = () => new Date().toISOString()
+    const safe = (v) => {
+      try { return JSON.stringify(v) } catch (_) { return String(v) }
+    }
+    return {
+      info: (m, d) => lines.push(`${now()} [info] ${m}${d ? ' ' + safe(d) : ''}`),
+      warn: (m, d) => lines.push(`${now()} [warn] ${m}${d ? ' ' + safe(d) : ''}`),
+      error: (m, d) => lines.push(`${now()} [error] ${m}${d ? ' ' + safe(d) : ''}`),
+      toText: (status, err) => {
+        const header = `${action} — ${status.toUpperCase()}`
+        const ctx = context ? `\n\nContext: ${safe(context)}` : ''
+        const errPart = err ? `\n\nError: ${err.message || String(err)}${err.stack ? `\nStack:\n${err.stack}` : ''}` : ''
+        return `${header}${ctx}\n\nLog:\n${lines.join('\n')}${errPart}`
+      }
+    }
+  }
+
+  async function reportFailureAsTextTopic({ store, revealTopic, title, logText }) {
+    const type = getTextType(store)
+    if (!type) {
+      console.error('[dmx-search] No dmx.core.text/note type available to report error')
+      return
+    }
+    const model = type.newTopicModel({ value: `${title}\n\n${logText}` })
+    const topic = await dmx.rpc.createTopic(model)
+    revealTopic(topic)
+  }
+
   function revealTopicNoSelect (topic) {
     revealTopic(topic, true)    // noSelect=true
   }
@@ -57,50 +95,54 @@ export default ({store}) => {
     store.dispatch('revealAssoc', {assoc})
   }
 
-  function createTopic ({ topicType, value }) {
-    if (!topicType || typeof topicType.newTopicModel !== 'function') {
-      console.warn('[createTopic] invalid topicType', topicType)
-      return
+  function createTopic({ topicType, value }) {
+    const action = 'Create FedWiki Sitemap' // or derive from topicType
+    const ctx = {
+      topicTypeUri: topicType?.uri,
+      topicTypeLabel: topicType?.value,
+      inputPreview: typeof value === 'string' ? value.slice(0, 200) : value
     }
+    const log = makeOpLog(action, ctx)
 
-    const isSimple = !!topicType.isSimple
+    try {
+      if (!topicType || typeof topicType.newTopicModel !== 'function') {
+        throw new Error('Invalid topicType')
+      }
 
-    const payload = isSimple
-      // Simple-valued: ensure { value: ... }
-      ? (value == null
-          ? { value: '' }
-          : (typeof value === 'object' ? value : { value }))
-      // Composite: put the typed string into a sensible simple child
-      : (() => {
-          const p = { children: {} }
-          if (value != null) {
-            const defs = topicType.compDefs || []
-            // prefer a “name/label/title” child if available, else first simple child
-            const nameDef =
-              defs.find(d =>
-                d.childType?.isSimple &&
-                (
-                  /name|label|title/i.test(d.childType?.value || '') ||
-                  d.childType?.uri === 'dmx.core.name' ||
-                  d.childType?.uri === 'dmx.core.text'
-                )
-              ) || defs.find(d => d.childType?.isSimple)
+      const isSimple = !!topicType.isSimple
+      const payload = isSimple
+        ? (value == null ? { value: '' } : (typeof value === 'object' ? value : { value }))
+        : { children: {} } // minimal MVP for composites; refine later if needed
 
-            if (nameDef) {
-              const v = (typeof value === 'object' && 'value' in value) ? value : { value }
-              p.children[nameDef.compDefUri] = nameDef.isOne ? v : [v]
-            }
-          }
-          return p
-        })()
+      log.info('building topicModel', { isSimple })
 
-    console.debug('[createTopic]', { isSimple, payload, topicType })
+      const topicModel = topicType.newTopicModel(payload)
 
-    const topicModel = topicType.newTopicModel(payload)
-    dmx.rpc.createTopic(topicModel).then(topic => {
-      revealTopic(topic)
-      store.dispatch('_processDirectives', topic.directives)
-    })
+      dmx.rpc.createTopic(topicModel)
+        .then(topic => {
+          log.info('createTopic success', { id: topic.id, typeUri: topic.typeUri })
+          revealTopic(topic)
+          store.dispatch('_processDirectives', topic.directives)
+        })
+        .catch(async (err) => {
+          log.error('createTopic RPC failed')
+          await reportFailureAsTextTopic({
+            store,
+            revealTopic,
+            title: `${action} — FAILED`,
+            logText: log.toText('failure', err)
+          })
+        })
+    } catch (err) {
+      // synchronous errors (before RPC)
+      log.error('createTopic threw before RPC')
+      reportFailureAsTextTopic({
+        store,
+        revealTopic,
+        title: `${action} — FAILED (client)`,
+        logText: log.toText('failure', err)
+      })
+    }
   }
 
   function createExtra ({extraItem, value, optionsData}) {

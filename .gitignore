@@ -4,9 +4,12 @@
 /runner/
 /bundle-deploy/
 /bundle-disabled/
+
 /modules-external/*
-!/modules-external/dmx-zettelkasten
+!/modules-external/dmx-dita
 !/modules-external/dmx-fedwiki
+!/modules-external/dmx-zettelkasten
+
 /modules-nodejs/
 
 target/

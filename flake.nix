@@ -1,341 +1,202 @@
 {
-  description = "Nix devShell for dmx-zettelkasten + DMX platform";
+  description = "DMX platform dev shell with plugin-build/watch (fedwiki | zettelkasten | dita)";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
 
   outputs = { self, nixpkgs }:
   let
-    forAllSystems = f:
-      nixpkgs.lib.genAttrs
-        [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ]
-        (system: f (import nixpkgs { inherit system; }));
+    forAllSystems = nixpkgs.lib.genAttrs [
+      "x86_64-darwin" "aarch64-darwin" "x86_64-linux" "aarch64-linux"
+    ];
   in
   {
-    devShells = forAllSystems (pkgs:
+    devShells = forAllSystems (system:
       let
-        nodejs    = pkgs.nodejs_20;   # change to nodejs_20 if DMX supports it
-        jdk8      = pkgs.jdk8;        # DMX template asks for Java 8
-        jdk11     = pkgs.jdk11;
-        # default JDK for shell (can stay 8)
-        defaultJdk = jdk8;
-        maven     = pkgs.maven;
-        sed       = pkgs.gnused;      # ensure GNU sed (for -i)
-        git       = pkgs.git;
-        curl      = pkgs.curl;
-        lsof      = pkgs.lsof;
-        bash      = pkgs.bash;
-        coreutils = pkgs.coreutils;
+        pkgs = import nixpkgs { inherit system; };
 
-        writeCmd = name: text: pkgs.writeShellScriptBin name ''
+        # optional 'bnd' CLI — not present in all 24.05 channels
+        maybeBnd = pkgs.bnd or null;
+        withBnd  = pkgs.lib.optionals (maybeBnd != null) [ maybeBnd ];
+
+        jdkFor = ver:
+          if ver == "8"  then pkgs.jdk8
+          else if ver == "11" then pkgs.jdk11
+          else if ver == "17" then pkgs.jdk17
+          else pkgs.jdk8;
+
+        plugin-build = pkgs.writeShellScriptBin "plugin-build" ''
           set -euo pipefail
-          ${text}
-        '';
 
-        # Resolve DMX dir (default: sibling ../dmx-platform)
-        dmxDirResolve = ''
-          DMX_DIR="''${DMX_DIR:-$(cd "$(git rev-parse --show-toplevel)/.."; pwd)/dmx-platform}"
-        '';
+          usage() {
+            cat <<USAGE
+Usage:
+  plugin-build [fedwiki|zettelkasten|dita] [--jdk 8|11|17]
+  plugin-build                # run inside a plugin dir
 
-        cmd_clone = writeCmd "dmx-clone" ''
-          ${dmxDirResolve}
-          if [ -d "$DMX_DIR/.git" ]; then
-            echo "dmx-platform already present at: $DMX_DIR"
-            exit 0
-          fi
-          echo "Cloning dmx-platform into $DMX_DIR ..."
-          git clone https://github.com/dmx-systems/dmx-platform "$DMX_DIR"
-          echo "Done."
-        '';
-
-        cmd_build = writeCmd "dmx-build" ''
-          ${dmxDirResolve}
-          echo "Building DMX platform (all modules, skip tests) ..."
-          cd "$DMX_DIR"
-          mvn -T 1C clean install -P all -DskipTests
-        '';
-
-        cmd_link = writeCmd "dmx-plugin-dev-link" ''
-          ${dmxDirResolve}
-          PM="$DMX_DIR/modules/dmx-webclient/src/main/js/plugin-manager.js"
-          LINE="initPlugin(require('modules-external/dmx-zettelkasten/src/main/js/plugin.js').default)"
-
-          if grep -Fq "modules-external/dmx-zettelkasten" "$PM"; then
-            echo "Plugin already linked in plugin-manager.js"
-            exit 0
-          fi
-
-          if ! grep -Fq "// while development add your plugins here" "$PM"; then
-            echo "Marker comment not found in $PM" >&2
-            exit 1
-          fi
-
-          # Insert our initPlugin line right after the marker
-          ${sed}/bin/sed -i '/\/\/ while development add your plugins here/a '"$LINE" "$PM"
-          echo "Linked dmx-zettelkasten into Webclient (plugin-manager.js)."
-        '';
-
-        cmd_run_backend = writeCmd "dmx-run-backend" ''
-          ${dmxDirResolve}
-          cd "$DMX_DIR"
-          echo "Starting DMX backend (mvn pax:run) ..."
-          mvn pax:run
-        '';
-
-        # Free a TCP port (default 8080) using lsof (macOS/Linux)
-        cmd_free_8080 = writeCmd "dmx-free-8080" ''
-          PORT="''${1:-8080}"
-          echo "Looking for listeners on TCP port $PORT ..."
-          PIDS="$(${lsof}/bin/lsof -t -iTCP:''${PORT} -sTCP:LISTEN || true)"
-          if [ -z "$PIDS" ]; then
-            echo "No process is listening on $PORT."
-            exit 0
-          fi
-          echo "Found PID(s): $PIDS"
-          for p in $PIDS; do
-            echo "Sending SIGTERM to $p"
-            kill -15 "$p" || true
-          done
-          sleep 1
-          PIDS2="$(${lsof}/bin/lsof -t -iTCP:''${PORT} -sTCP:LISTEN || true)"
-          if [ -n "$PIDS2" ]; then
-            echo "Still listening: $PIDS2 — sending SIGKILL"
-            for p in $PIDS2; do kill -9 "$p" || true; done
-          fi
-          echo "Port $PORT is free."
-        '';
-
-        # Reset the dev DB (backs up dmx-db to dmx-db.bak-<timestamp>)
-        cmd_reset_db = writeCmd "dmx-reset-db" ''
-          ${dmxDirResolve}
-          DB_DIR="$DMX_DIR/dmx-db"
-          if [ ! -d "$DB_DIR" ]; then
-            echo "No DB directory at $DB_DIR (nothing to reset)."
-            exit 0
-          fi
-          TS="$(date +%Y%m%d-%H%M%S)"
-          BK="$DMX_DIR/dmx-db.bak-$TS"
-          echo "Backing up $DB_DIR -> $BK"
-          mv "$DB_DIR" "$BK"
-          echo "Reset done. DMX will recreate an empty DB on next start."
-        '';
-
-        cmd_run_frontend = writeCmd "dmx-run-frontend" ''
-          ${dmxDirResolve}
-          cd "$DMX_DIR"
-          echo "Starting Webpack Dev Server with OpenSSL legacy provider (Node>=17 workaround) ..."
-          NODE_OPTIONS="--openssl-legacy-provider" npm run dev
-        '';
-
-        # Start backend on a custom HTTP port (default 8081)
-        cmd_run_backend_port = writeCmd "dmx-run-backend-port" ''
-          ${dmxDirResolve}
-          PORT="''${1:-8081}"
-          cd "$DMX_DIR"
-          echo "Starting DMX backend on port $PORT ..."
-          mvn -Dorg.osgi.service.http.port="$PORT" pax:run
-        '';
-
-        cmd_plugin_build = writeCmd "plugin-build" ''
-          usage() { echo "Usage: plugin-build [fedwiki|zettelkasten] [--jdk 8|11] (or run inside that plugin dir)"; exit 1; }
-
-          # find DMX platform root (works when called from inside modules-external/* too)
-          find_dmx_root() {
-            local d="$PWD"
-            while [ "$d" != "/" ]; do
-              if [ -d "$d/bundle-deploy" ] && [ -d "$d/modules" ]; then echo "$d"; return 0; fi
-              if [ -f "$d/pom.xml" ] && grep -q '<artifactId>dmx</artifactId>' "$d/pom.xml"; then echo "$d"; return 0; fi
-              d="$(dirname "$d")"
-            done
-            # fallback to sibling pattern
-            echo "$(cd "$(git rev-parse --show-toplevel)/.."; pwd)/dmx-platform"
+Notes:
+  - Defaults: plugin inferred from CWD, --jdk 8 (for dmx-dita), -DskipTests
+  - Copies newest target/*.jar to <repo-root>/bundle-deploy/
+USAGE
           }
 
-          TARGET=""
-          JAVA_VER="''${DMX_JAVA:-11}"
+          ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+          WANT_JDK="8"
+          TARGET_PLUGIN=""
 
-          # robust arg parsing: --jdk=8, --jdk 8, 8, 11, jdk8, jdk11
           while [ $# -gt 0 ]; do
             case "$1" in
-              fedwiki|zettelkasten) TARGET="$1"; shift ;;
-              --jdk=*)              JAVA_VER="''${1#--jdk=}"; shift ;;
-              --jdk)                shift; [ $# -gt 0 ] || { echo "ERROR: --jdk needs a value (8 or 11)"; exit 1; }; JAVA_VER="$1"; shift ;;
-              8|11)                 JAVA_VER="$1"; shift ;;
-              jdk8)                 JAVA_VER=8; shift ;;
-              jdk11)                JAVA_VER=11; shift ;;
-              -h|--help)            usage ;;
-              *) echo "Unknown arg: $1"; usage ;;
+              --help|-h) usage; exit 0;;
+              --jdk) WANT_JDK="''${2:-8}"; shift 2;;
+              fedwiki|zettelkasten|dita) TARGET_PLUGIN="$1"; shift;;
+              *) echo "Unknown arg: $1"; usage; exit 2;;
             esac
           done
 
-          # infer target when run inside a plugin dir
-          if [ -z "''${TARGET}" ]; then
-            if [ -f pom.xml ] && grep -q '<artifactId>dmx-fedwiki</artifactId>' pom.xml; then
-              TARGET="fedwiki"
-            elif [ -f pom.xml ] && grep -q '<artifactId>dmx-zettelkasten</artifactId>' pom.xml; then
-              TARGET="zettelkasten"
-            else
-              usage
+          if [ -z "''${TARGET_PLUGIN:-}" ]; then
+            base="$(basename "$PWD")"
+            case "$base" in
+              dmx-fedwiki|fedwiki) TARGET_PLUGIN="fedwiki";;
+              dmx-zettelkasten|zettelkasten) TARGET_PLUGIN="zettelkasten";;
+              dmx-dita|dita) TARGET_PLUGIN="dita";;
+            esac
+          fi
+
+          if [ -z "''${TARGET_PLUGIN:-}" ]; then
+            echo "Error: Can't infer plugin. Specify one of: fedwiki zettelkasten dita"; usage; exit 2;
+          fi
+
+          PLUGDIR="$ROOT/modules-external/dmx-$TARGET_PLUGIN"
+          if [ ! -d "$PLUGDIR" ]; then
+            if [ -f "pom.xml" ]; then PLUGDIR="$PWD"; else
+              echo "Error: $PLUGDIR not found and no pom.xml in CWD"; exit 1;
             fi
           fi
 
-          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          echo "==> Building plugin: $TARGET_PLUGIN (JDK $WANT_JDK)"
 
-          case "''${TARGET}" in
-            fedwiki)
-              if [ -f pom.xml ] && grep -q '<artifactId>dmx-fedwiki</artifactId>' pom.xml; then
-                PLUG_DIR="$PWD"
-              else
-                PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-fedwiki"
-              fi
-              ;;
-            zettelkasten)
-              if [ -f pom.xml ] && grep -q '<artifactId>dmx-zettelkasten</artifactId>' pom.xml; then
-                PLUG_DIR="$PWD"
-              else
-                PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-zettelkasten"
-              fi
-              ;;
-            *) usage ;;
-          esac
-
-          cd "''${PLUG_DIR}"
-
-          # choose JDK
-          if [ "''${JAVA_VER}" = "8" ]; then
-            export JAVA_HOME="${jdk8}"
-            export PATH="''${JAVA_HOME}/bin:''${PATH}"
-            MVN_PROFILE="-P java8"
-            echo ">> Using JDK 8 for dmx-''${TARGET}"
-          elif [ "''${JAVA_VER}" = "11" ]; then
-            export JAVA_HOME="${jdk11}"
-            export PATH="''${JAVA_HOME}/bin:''${PATH}"
-            MVN_PROFILE="-P java11"
-            echo ">> Using JDK 11 for dmx-''${TARGET}"
-          else
-            echo "ERROR: Invalid JDK version ''${JAVA_VER}'. Use 8 or 11."
-            exit 1
+          if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+            if MAVEN_JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
+              export JAVA_HOME="$MAVEN_JAVA_HOME"
+              export PATH="$JAVA_HOME/bin:$PATH"
+            fi
           fi
 
-          echo "Building dmx-''${TARGET} (mvn -DskipTests package ''${MVN_PROFILE}) ..."
-          mvn -DskipTests package ''${MVN_PROFILE}
+          ( cd "$PLUGDIR"
+            echo "Running: mvn -q -DskipTests package"
+            mvn -q -DskipTests package
+          )
 
-          AID="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.artifactId)"
-          VER="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
-          JAR="target/''${AID}-''${VER}.jar"
-          [ -f "''${JAR}" ] || { echo "ERROR: built jar not found at ''${JAR}" >&2; exit 2; }
+          NEWEST_JAR="$(ls -1t "$PLUGDIR"/target/*.jar 2>/dev/null | head -n1 || true)"
+          if [ -z "$NEWEST_JAR" ]; then
+            echo "Error: No jar found under $PLUGDIR/target"; exit 1;
+          fi
 
-          DMX_DIR="''${DMX_DIR:-$(find_dmx_root)}"
-          DEST="''${DMX_DIR}/bundle-deploy"
-          mkdir -p "''${DEST}"
+          DEPLOY="$ROOT/bundle-deploy"
+          mkdir -p "$DEPLOY"
+          cp -f "$NEWEST_JAR" "$DEPLOY/"
+          echo "✅ Deployed: $DEPLOY/$(basename "$NEWEST_JAR")"
 
-          echo "Deploying ''${JAR} -> ''${DEST} ..."
-          cp -v "''${JAR}" "''${DEST}/"
-          echo "Done. If DMX is running, FileInstall should hot-reload the bundle."
+          if command -v bnd >/dev/null 2>&1; then
+            echo "Tip: check OSGi imports/exports via:"
+            echo "  bnd print -i \"$DEPLOY/$(basename "$NEWEST_JAR")\""
+          else
+            echo "(optional) 'bnd' CLI not found in this nix env."
+          fi
         '';
 
-        cmd_plugin_watch = writeCmd "plugin-watch" ''
-          PLUGIN="''${1:-}"
-          shift || true
+        plugin-watch = pkgs.writeShellScriptBin "plugin-watch" ''
+          set -euo pipefail
 
-          # Auto-detect plugin if inside plugin directory
-          if [ -z "''${PLUGIN}" ]; then
-            case "''${PWD}" in
-              */modules-external/dmx-fedwiki*)       PLUGIN="fedwiki" ;;
-              */modules-external/dmx-zettelkasten*)  PLUGIN="zettelkasten" ;;
-              *)
-                echo "Usage: plugin-watch [fedwiki|zettelkasten] [--jdk 8|11]"
-                echo "Or run from inside the plugin directory"
-                exit 1
-              ;;
+          usage() {
+            cat <<USAGE
+Usage:
+  plugin-watch [fedwiki|zettelkasten|dita] [--jdk 8|11|17]
+
+Watches src/** and pom.xml, rebuilds with Maven, and copies newest jar to bundle-deploy/.
+USAGE
+          }
+
+          ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+          TARGET_PLUGIN=""
+          WANT_JDK="8"
+
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              --help|-h) usage; exit 0;;
+              --jdk) WANT_JDK="''${2:-8}"; shift 2;;
+              fedwiki|zettelkasten|dita) TARGET_PLUGIN="$1"; shift;;
+              *) echo "Unknown arg: $1"; usage; exit 2;;
+            esac
+          done
+
+          if [ -z "''${TARGET_PLUGIN:-}" ]; then
+            base="$(basename "$PWD")"
+            case "$base" in
+              dmx-fedwiki|fedwiki) TARGET_PLUGIN="fedwiki";;
+              dmx-zettelkasten|zettelkasten) TARGET_PLUGIN="zettelkasten";;
+              dmx-dita|dita) TARGET_PLUGIN="dita";;
             esac
           fi
+          [ -n "''${TARGET_PLUGIN:-}" ] || { echo "Error: specify plugin"; usage; exit 2; }
 
-          # Determine plugin directory
-          REPO_ROOT="$(git rev-parse --show-toplevel)"
-          case "''${PLUGIN}" in
-            fedwiki)      PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-fedwiki" ;;
-            zettelkasten) PLUG_DIR="''${REPO_ROOT}/modules-external/dmx-zettelkasten" ;;
-            *) echo "Unknown plugin: ''${PLUGIN}"; exit 1 ;;
-          esac
+          PLUGDIR="$ROOT/modules-external/dmx-$TARGET_PLUGIN"
+          if [ ! -d "$PLUGDIR" ]; then
+            if [ -f "pom.xml" ]; then PLUGDIR="$PWD"; else
+              echo "Error: $PLUGDIR not found and no pom.xml in CWD"; exit 1;
+            fi
+          fi
 
-          echo "Watching ''${PLUGIN} sources in ''${PLUG_DIR} -> rebuild & hot-deploy on changes ..."
+          echo "==> Watching $TARGET_PLUGIN (JDK $WANT_JDK)"
 
-          # Change to plugin directory and run watchexec there
-          cd "''${PLUG_DIR}"
-          ${pkgs.watchexec}/bin/watchexec \
-            -w src/main/java -w src/main/resources -w src/main/js \
-            --shell=none --restart --clear \
-            -- plugin-build "''${PLUGIN}" "$@"
+          if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+            if JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
+              export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
+            fi
+          fi
+
+          DEPLOY="$ROOT/bundle-deploy"
+          mkdir -p "$DEPLOY"
+
+          build_and_copy() {
+            ( cd "$PLUGDIR"
+              mvn -q -DskipTests package || return 1
+              NEWEST_JAR="$(ls -1t target/*.jar | head -n1)"
+              cp -f "$NEWEST_JAR" "$DEPLOY/"
+              echo "🔁 Deployed: $DEPLOY/$(basename "$NEWEST_JAR")"
+            )
+          }
+
+          build_and_copy || true
+          if command -v watchexec >/dev/null 2>&1; then
+            watchexec -w "$PLUGDIR/src" -w "$PLUGDIR/pom.xml" --shell=none -- \
+              bash -lc 'build_and_copy'
+          else
+            echo "watchexec not found; polling every 3s."
+            LAST=""
+            while true; do
+              NOW="$(find "$PLUGDIR/src" "$PLUGDIR/pom.xml" -type f -print0 2>/dev/null | xargs -0 stat -f '%m' 2>/dev/null || echo 0)"
+              if [ "''${NOW:-0}" != "''${LAST:-1}" ]; then LAST="$NOW"; build_and_copy || true; fi
+              sleep 3
+            done
+          fi
         '';
-
-        cmd_run_backend_j11 = writeCmd "dmx-run-backend-j11" ''
-          ${dmxDirResolve}
-          cd "$DMX_DIR"
-          echo "Starting DMX backend on JDK 11 ..."
-          export JAVA_HOME="${jdk11}"
-          export PATH="${jdk11}/bin:$PATH"
-          mvn pax:run
-        '';
-
-        cmd_build_j11 = writeCmd "dmx-build-j11" ''
-          ${dmxDirResolve}
-          cd "$DMX_DIR"
-          echo "Building DMX platform with JDK 11 (still targeting whatever the POM sets) ..."
-          export JAVA_HOME="${jdk11}"
-          export PATH="${jdk11}/bin:$PATH"
-          mvn -T 1C clean install -P all -DskipTests
-        '';
-
       in
       {
         default = pkgs.mkShell {
-          packages = [
-            defaultJdk maven nodejs git curl sed lsof coreutils bash
-          ];
+          packages =
+            [
+              (jdkFor "8") (jdkFor "11") (jdkFor "17")
+              pkgs.maven pkgs.git pkgs.findutils pkgs.coreutils pkgs.gnused
+              pkgs.watchexec
+              plugin-build plugin-watch
+            ] ++ withBnd;
 
-          # Many JDK packages export JAVA_HOME automatically; keep it explicit:
           shellHook = ''
-            export JAVA_HOME="${defaultJdk}"
-            export PATH="$PATH:${defaultJdk}/bin"
-            # Webpack + Node>=17 (OpenSSL 3) workaround for dev & build
-            export NODE_OPTIONS="--openssl-legacy-provider"
-            echo
-            echo "dmx-zettelkasten devshell ready."
-            echo "Helper commands:"
-            echo "  dmx-clone                 - clone dmx-platform next to this repo (or use \$DMX_DIR)"
-            echo "  dmx-build                 - build dmx-platform (-P all, skip tests)"
-            echo "  dmx-plugin-dev-link       - link this plugin into Webclient for HMR"
-            echo "  dmx-run-backend           - start DMX backend (pax:run)"
-            echo "  dmx-run-backend-port [P]  - backend on a custom port (default 8081)"
-            echo "  dmx-run-frontend          - start Webpack Dev Server (npm run dev)"
-            echo "  plugin-build              - build this plugin jar (deploys to bundle-deploy)"
-            echo "  plugin-watch              - watch src/* and auto-build + hot-deploy"
-            echo "  dmx-run-backend-j11       - run backend on Java 11"
-            echo "  dmx-build-j11             - build platform using Java 11 toolchain"
-            echo "  dmx-free-8080 [PORT]      - free a TCP port (SIGTERM then SIGKILL)"
-            echo "  dmx-reset-db              - backup & reset dmx-db"
-            echo
-            echo "Tip: export DMX_DIR=/path/to/dmx-platform if it's not ../dmx-platform"
-            echo
+            echo "Commands available: plugin-build, plugin-watch"
+            if ! command -v bnd >/dev/null 2>&1; then
+              echo "(optional) 'bnd' CLI not found in this nixpkgs; skipping."
+            fi
           '';
-
-          buildInputs = [ ];
-
-          # Install helper commands into the environment
-          nativeBuildInputs = [
-            cmd_clone
-            cmd_build
-            cmd_link
-            cmd_run_backend
-            cmd_run_backend_port
-            cmd_run_frontend
-            cmd_plugin_build
-            cmd_plugin_watch
-            cmd_free_8080
-            cmd_reset_db
-            cmd_run_backend_j11
-            cmd_build_j11
-          ];
         };
       });
   };

@@ -28,3 +28,31 @@ I’m thinking about how to handle this: using fetchurl to add a specific bndPri
 ## Creating bnd-print script
 
 I’m thinking of setting up a bnd-print script that will first check if bnd is available, and if not, it’ll fall back to using unzip and grep to parse the metadata. I’ll also update the devShell to include jdk17, unzip, and other necessary utilities. It’ll be a small, additive change.
+
+## Explaining dmx-run-backend issue
+
+The issue arises from a previous Flake update, where many helper commands (including dmx-run-backend) were removed. This command isn't installed since it was excluded but still appears in .envrc. To fix, you can either remove it from .envrc or add the necessary scripts in flake.nix. I recommend adding dmx-run-backend, dmx-run-backend-port, and dmx-run-frontend; ensuring .envrc only lists available commands.
+
+## Updating flake.nix and .envrc
+
+We need to update flake.nix to add writeShellScriptBin commands and include them in packages. We should also adjust .envrc, making sure it prints only existing commands. I’ll implement a wrapper for dmx-run-backend using the DMX_JAVA env variable to allow Java version selection. Also, include a simplified version for dmx-run-backend-j11.
+
+## Implementing minimal stubs
+
+We'll implement a few necessary stubs:
+
+    dmx-run-backend: Uses the DMX_DIR detection and sets JAVA_HOME via /usr/libexec/java_home based on DMX_JAVA.
+
+    dmx-run-backend-port: Similar to the above but sets the HTTP port.
+
+    dmx-build: Adds build platform with -P all and optional test skipping.
+
+    dmx-run-frontend: Uses npm run dev.
+
+    dmx-free-8080: Reintroduces lsof utility from a previous version, adding pkgs.lsof and nodejs_20 to dependencies as needed.
+
+## Implementing additional scripts and fixes
+
+We’ll add some simple wrappers like dmx-reset-db (moving folders) and dmx-run-backend-j11 and dmx-build-j11. For dmx-plugin-dev-link, I’m considering skipping the risky sed editing. The user specifically asked about dmx-run-backend, so I’ll provide a minimal patch that adds dmx-run-backend, dmx-run-backend-port, dmx-run-backend-j11, and includes necessary dependencies like lsof. The .envrc should be fine as is.
+
+## Add direnv to flake

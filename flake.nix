@@ -24,18 +24,31 @@
           else if ver == "17" then pkgs.jdk17
           else pkgs.jdk8;
 
+        # concrete handle to the devshell's JDK 8 (used for backend)
+        dmxJdk8 = jdkFor "8";
+
         # ---------- Helpers: backend ----------
         dmx-run-backend = pkgs.writeShellScriptBin "dmx-run-backend" ''
           set -euo pipefail
           ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
           DMX_DIR="''${DMX_DIR:-$ROOT}"
           [ -f "$DMX_DIR/pom.xml" ] || { echo "dmx-run-backend: no pom.xml under $DMX_DIR"; exit 1; }
+
           WANT_JDK="''${1:-''${DMX_JAVA:-8}}"
-          if command -v /usr/libexec/java_home >/dev/null 2>&1; then
-            if JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
-              export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
+
+          # For JDK 8 we *force* the Nix devshell JDK, to avoid macOS /usr/libexec/java_home
+          if [ "$WANT_JDK" = "8" ]; then
+            export JAVA_HOME=${dmxJdk8}
+            export PATH="$JAVA_HOME/bin:$PATH"
+          else
+            # For other versions, fall back to macOS java_home if available
+            if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+              if JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
+                export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
+              fi
             fi
           fi
+
           echo "==> DMX backend (JDK $WANT_JDK) @ $DMX_DIR"
           ( cd "$DMX_DIR" && mvn pax:run )
         '';
@@ -47,11 +60,19 @@
           PORT="''${1:-8081}"
           WANT_JDK="''${2:-''${DMX_JAVA:-8}}"
           [ -f "$DMX_DIR/pom.xml" ] || { echo "dmx-run-backend-port: no pom.xml under $DMX_DIR"; exit 1; }
-          if command -v /usr/libexec/java_home >/dev/null 2>&1; then
-            if JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
-              export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
+
+          # Same JDK selection logic as dmx-run-backend
+          if [ "$WANT_JDK" = "8" ]; then
+            export JAVA_HOME=${dmxJdk8}
+            export PATH="$JAVA_HOME/bin:$PATH"
+          else
+            if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+              if JAVA_HOME="$(/usr/libexec/java_home -v "$WANT_JDK" 2>/dev/null)"; then
+                export JAVA_HOME PATH="$JAVA_HOME/bin:$PATH"
+              fi
             fi
           fi
+
           echo "==> DMX backend (port $PORT, JDK $WANT_JDK) @ $DMX_DIR"
           ( cd "$DMX_DIR" && mvn -Dorg.osgi.service.http.port="$PORT" pax:run )
         '';

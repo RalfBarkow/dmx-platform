@@ -110,9 +110,35 @@ export default ({store}) => {
       }
 
       const isSimple = !!topicType.isSimple
-      const payload = isSimple
-        ? (value == null ? { value: '' } : (typeof value === 'object' ? value : { value }))
-        : { children: {} } // minimal MVP for composites; refine later if needed
+
+      const payload = (() => {
+        if (isSimple) {
+          // Ensure simple-valued topics always send { value: ... }
+          if (value == null) return { value: '' }
+          if (typeof value === 'object' && !Array.isArray(value)) return value
+          return { value }
+        }
+
+        const defs = topicType.compDefs || []
+        const chosen =
+          defs.find(d =>
+            d.childType?.isSimple &&
+            (/name|label|title/i.test(d.childType?.value || '') ||
+             d.childType?.uri === 'dmx.core.name' ||
+             d.childType?.uri === 'dmx.core.text')
+          ) || defs.find(d => d.childType?.isSimple)
+
+        const base = (value && typeof value === 'object' && value.children) ? value : { children: {} }
+        if (chosen) {
+          const simpleVal =
+            (value && typeof value === 'object' && typeof value.value !== 'object')
+              ? value.value
+              : (typeof value === 'string' ? value : '')
+          const childPayload = { value: simpleVal }
+          base.children[chosen.compDefUri] = chosen.isOne ? childPayload : [childPayload]
+        }
+        return base
+      })()
 
       log.info('building topicModel', { isSimple })
 

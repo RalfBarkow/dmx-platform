@@ -56,5 +56,16 @@
             <version>3.2.6</version>
         </dependency-->
         <!-- Note: when replacing Felix HTTP with Pax Web you must set dmx.webservice.path=/* -->
+        <!-- dmx-dita: RELAX NG packages -->
+        <dependency>
+            <groupId>org.apache.servicemix.bundles</groupId>
+            <artifactId>org.apache.servicemix.bundles.jing</artifactId>
+            <version>20181222_1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.servicemix.bundles</groupId>
+            <artifactId>org.apache.servicemix.bundles.relaxng-datatype</artifactId>
+            <version>20020414_3</version>
+        </dependency>
     </dependencies>
 </project>

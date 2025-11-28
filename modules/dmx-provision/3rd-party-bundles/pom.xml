@@ -128,5 +128,11 @@
             <artifactId>snakeyaml</artifactId>
             <version>1.33</version>
         </dependency>
+        <!-- Guava for dmx-dita (jackson-dataformat-yaml -> guava baseline 25.x) -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>25.1-jre</version>
+        </dependency>
     </dependencies>
 </project>

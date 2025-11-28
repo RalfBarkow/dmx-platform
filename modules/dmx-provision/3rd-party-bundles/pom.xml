@@ -140,5 +140,11 @@
             <artifactId>icu4j</artifactId>
             <version>71.1</version>
         </dependency>
+        <!-- RELAX NG JAXP for dmx-dita -->
+        <dependency>
+            <groupId>com.thaiopensource</groupId>
+            <artifactId>jing</artifactId>
+            <version>20181222</version>
+        </dependency>
     </dependencies>
 </project>

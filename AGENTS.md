@@ -26,3 +26,6 @@
 - Follow the observed conventional style: `feat:`, `fix:`, `chore:` with an optional scope per module (e.g., `fix(dmx-webservice): handle empty payload`). Use the imperative mood and keep subjects under ~72 chars.
 - PRs should include: a short summary, the primary module(s) touched, screenshots for UI changes, and test/build commands executed.
 - Do not commit build outputs, local config, or data directories (`dmx-db/`, `target/`, `node_modules/`, `resources-build/`). Keep secrets out of config files; use local overrides instead.
+
+## Implementation Plans
+- Active plan: `IMPLEMENTATION_PLAN.md` — tracks work to restore DMX health checks and get dmx-dita running the minimal DITA job used by the environment test.

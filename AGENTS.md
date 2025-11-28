@@ -8,7 +8,7 @@
 
 ## Build, Test, and Development Commands
 - Backend build: `mvn clean install` at repo root builds all modules and the distribution. Add `-DskipTests` when iterating quickly.
-- Backend tests only: `mvn test -pl modules/dmx-test -am` runs the core suite without rebuilding everything.
+- Backend tests only: `mvn -Pall test -pl modules/dmx-test -am` runs the core suite; use `-f modules/dmx-test/pom.xml` if you prefer a single-module invocation without profiles.
 - Frontend dev: from `modules/dmx-webclient`, run `npm install` once, then `npm run dev` for the webpack dev server (hot reload). `npm run build` produces production assets.
 - Running the stack: after building, launch the packaged app via the platform script for your OS under `modules/dmx-distribution/script/` (e.g., `./dmx-mac.command`).
 

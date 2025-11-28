@@ -151,5 +151,10 @@
             <artifactId>relaxngDatatype</artifactId>
             <version>20020414</version>
         </dependency>
+        <dependency>
+            <groupId>com.thaiopensource</groupId>
+            <artifactId>trang</artifactId>
+            <version>20091111</version>
+        </dependency>
     </dependencies>
 </project>

@@ -161,5 +161,10 @@
             <artifactId>org.apache.servicemix.bundles.jing</artifactId>
             <version>20181222_1</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.servicemix.bundles</groupId>
+            <artifactId>org.apache.servicemix.bundles.relaxng-datatype</artifactId>
+            <version>20020414_3</version>
+        </dependency>
     </dependencies>
 </project>

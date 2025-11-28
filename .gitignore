@@ -23,6 +23,7 @@ node_modules/
 .shell_history
 .DS_Store
 .direnv
+.m2
 
 npm-debug.log
 npm-debug.log.*

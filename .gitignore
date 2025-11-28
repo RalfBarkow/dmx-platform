@@ -30,6 +30,8 @@ stats*.json
 
 commit-message.txt
 
+test-output/
+
 *.tmproj
 *.sublime-project
 *.sublime-workspace

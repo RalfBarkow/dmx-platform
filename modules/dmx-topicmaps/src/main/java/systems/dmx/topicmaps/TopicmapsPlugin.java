@@ -523,6 +523,7 @@ public class TopicmapsPlugin extends PluginActivator implements TopicmapsService
     }
 
     private ViewProps fetchTopicViewProps(Assoc topicmapContext) {
+        TopicmapContextGuard.requireTopicViewProps(topicmapContext);
         ViewProps viewProps = mf.newViewProps(
             (Integer) topicmapContext.getProperty(X),
             (Integer) topicmapContext.getProperty(Y),
@@ -539,6 +540,7 @@ public class TopicmapsPlugin extends PluginActivator implements TopicmapsService
     }
 
     private ViewProps fetchAssocViewProps(Assoc topicmapContext) {
+        TopicmapContextGuard.requireAssocViewProps(topicmapContext);
         return mf.newViewProps(
             visibility(topicmapContext),
             pinned(topicmapContext)
@@ -547,10 +549,12 @@ public class TopicmapsPlugin extends PluginActivator implements TopicmapsService
     }
 
     private boolean visibility(Assoc topicmapContext) {
+        TopicmapContextGuard.requireProperty(topicmapContext, VISIBILITY, "topicmap_context visibility lookup");
         return (Boolean) topicmapContext.getProperty(VISIBILITY);
     }
 
     private boolean pinned(Assoc topicmapContext) {
+        TopicmapContextGuard.requireProperty(topicmapContext, PINNED, "topicmap_context pinned lookup");
         return (Boolean) topicmapContext.getProperty(PINNED);
     }
 

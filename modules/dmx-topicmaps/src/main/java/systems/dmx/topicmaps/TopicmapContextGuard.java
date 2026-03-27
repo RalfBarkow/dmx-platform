@@ -55,7 +55,8 @@ final class TopicmapContextGuard {
     }
 
     static boolean matchesExactSafeCopyForwardShape(Assoc topicmapContext) {
-        return hasAllProps(topicmapContext, LEGACY_SHORT_KEYS) && missingAny(topicmapContext, TOPIC_VIEW_KEYS);
+        return hasAllProps(topicmapContext, LEGACY_SHORT_KEYS) && missingKeys(topicmapContext, TOPIC_VIEW_KEYS).size()
+            == TOPIC_VIEW_KEYS.size();
     }
 
     private static void requireLongFormProps(Assoc topicmapContext, List<String> requiredKeys, String accessMode) {
@@ -101,15 +102,6 @@ final class TopicmapContextGuard {
             }
         }
         return true;
-    }
-
-    private static boolean missingAny(Assoc topicmapContext, List<String> propUris) {
-        for (String propUri : propUris) {
-            if (!topicmapContext.hasProperty(propUri)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static List<String> missingKeys(Assoc topicmapContext, List<String> propUris) {

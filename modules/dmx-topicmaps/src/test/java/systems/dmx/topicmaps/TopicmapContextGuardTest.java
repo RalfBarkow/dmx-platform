@@ -75,6 +75,7 @@ class TopicmapContextGuardTest {
     void safeCopyForwardMarkerStaysNarrow() {
         Assoc exactShape = topicmapContext(921471, false, false, false, false, true, true, true, true);
         Assoc partialShape = topicmapContext(921426, false, false, false, false, false, false, true, true);
+        Assoc mixedLongAndShortShape = topicmapContext(921420, true, false, false, false, true, true, true, true);
 
         assertThatCode(() -> {
             if (!TopicmapContextGuard.matchesExactSafeCopyForwardShape(exactShape)) {
@@ -85,6 +86,12 @@ class TopicmapContextGuardTest {
         assertThatCode(() -> {
             if (TopicmapContextGuard.matchesExactSafeCopyForwardShape(partialShape)) {
                 throw new IllegalStateException("partial malformed shape must stay outside exact copy-forward marker");
+            }
+        }).doesNotThrowAnyException();
+
+        assertThatCode(() -> {
+            if (TopicmapContextGuard.matchesExactSafeCopyForwardShape(mixedLongAndShortShape)) {
+                throw new IllegalStateException("mixed long-and-short shape must stay outside exact copy-forward marker");
             }
         }).doesNotThrowAnyException();
     }
